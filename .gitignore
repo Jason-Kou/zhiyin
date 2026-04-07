@@ -1,0 +1,29 @@
+# --- Build / cache / IDE state ---
+.build/
+.venv/
+.swiftpm/
+.DS_Store
+*.pyc
+__pycache__/
+
+# --- Local editor / agent state ---
+.claude/
+.serena/
+
+# --- Large model files (downloaded at build time) ---
+models/SenseVoiceSmall.mlmodelc
+models/*.model
+
+# --- Release artifacts ---
+*.dmg
+
+# --- Internal dev files (kept on disk, never committed) ---
+.planning/
+CLAUDE.md
+CHANGELOG.md
+DEMO_SCRIPT.md
+TUNING_REFERENCE.md
+TODO.md
+PACKAGING.md
+docs/LICENSE_TESTING.md
+docs/test-audio/

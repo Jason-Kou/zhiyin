@@ -1,0 +1,38 @@
+[
+  {
+    "id": "mixed-en-zh-01",
+    "file": "EB9E7B36-1708-425B-8FD4-2E5B55D7FFF9.wav",
+    "language": "zh",
+    "duration_sec": 9.2,
+    "reference": "so let me see if the model changed or not 我们看一下模型是否改变了",
+    "tags": ["mixed-language", "english-chinese", "regression-translation"],
+    "notes": "English first half + Chinese second half. Both engines previously translated Chinese part to English when initial_prompt contained English vocabulary."
+  },
+  {
+    "id": "zh-pure-01",
+    "file": "52E6ABDD-4DC5-439E-B428-E782899FF001.wav",
+    "language": "zh",
+    "duration_sec": 1.6,
+    "reference": "我也不知道为什么",
+    "tags": ["chinese", "short", "regression-translation"],
+    "notes": "Pure Chinese. FunASR previously translated to 'I wonder why.' due to anti-translation prompt bug."
+  },
+  {
+    "id": "zh-short-01",
+    "file": "0D6C9166-A512-4C75-B825-E843B388816D.wav",
+    "language": "zh",
+    "duration_sec": 2.2,
+    "reference": "我不知道",
+    "tags": ["chinese", "short", "regression-translation"],
+    "notes": "Short Chinese utterance. FunASR translates to 'So, what's the matter?' — model-level translation bug."
+  },
+  {
+    "id": "zh-with-so-01",
+    "file": "E8A85B90-53EA-404F-9C20-BE74F4EFBD7D.wav",
+    "language": "zh",
+    "duration_sec": 1.7,
+    "reference": "so我不知道",
+    "tags": ["mixed-language", "short", "regression-translation"],
+    "notes": "Starts with English 'so' then Chinese. Both engines prone to translating entire utterance to English."
+  }
+]

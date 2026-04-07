@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:zhiyin}",
+            "name": "Debug zhiyin",
+            "target": "zhiyin",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug zhiyin"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:zhiyin}",
+            "name": "Release zhiyin",
+            "target": "zhiyin",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release zhiyin"
+        }
+    ]
+}
