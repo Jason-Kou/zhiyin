@@ -829,7 +829,7 @@ struct HistorySettingsTab: View {
                 SettingRow("Save History") {
                     Toggle("", isOn: $saveHistory)
                         .toggleStyle(.switch)
-                        .controlSize(.regular)
+                        .controlSize(.mini)
                         .labelsHidden()
                 }
                 Text("Automatically save transcriptions and audio recordings for later review.")
@@ -846,7 +846,7 @@ struct HistorySettingsTab: View {
                         Text("Never").tag(0)
                     }
                     .labelsHidden()
-                    .frame(minWidth: 100)
+                    .frame(width: 140)
                 }
                 Text("Old recordings and transcriptions are automatically removed on launch.")
                     .font(.caption)
@@ -854,51 +854,33 @@ struct HistorySettingsTab: View {
             }
 
             SettingsSection("Storage") {
-                HStack(alignment: .center, spacing: 12) {
-                    Image(systemName: "waveform")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 28)
-
+                HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("\(recordingCount) recordings")
                             .font(.callout)
-                            .fontWeight(.medium)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
                         Text(storageSize)
-                            .font(.footnote)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
                     }
-
                     Spacer()
-
-                    HStack(spacing: 8) {
-                        Button {
-                            let path = HistoryStore.recordingsDir
-                            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
-                        } label: {
-                            Label("Show in Finder", systemImage: "folder")
+                    Button("Open History") {
+                        if let delegate = NSApp.delegate as? AppDelegate {
+                            delegate.openHistory()
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .frame(minWidth: 130)
-
-                        Button {
-                            if let delegate = NSApp.delegate as? AppDelegate {
-                                delegate.openHistory()
-                            }
-                        } label: {
-                            Label("Open History", systemImage: "clock.arrow.circlepath")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .frame(minWidth: 130)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
                 }
-                .padding(.vertical, 4)
+
+                HStack {
+                    Spacer()
+                    Button("Show in Finder") {
+                        let path = HistoryStore.recordingsDir
+                        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
             }
         }
         .onAppear { refreshStats() }
