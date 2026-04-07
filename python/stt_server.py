@@ -928,19 +928,15 @@ async def stream_finalize(session_id: str, mode: str = "full"):
     if mode == "quick":
         result = await loop.run_in_executor(_get_executor(), _finalize_quick, session, samples)
     else:
-        # Try both full and quick, return whichever has more content.
-        # Full re-transcription is usually better for normal speech,
-        # but quick (streaming segments + tail) can be better for
-        # dense audio like rap where full mode truncates.
-        result_full = await loop.run_in_executor(_get_executor(), _finalize_full, session, samples)
-        result_quick = await loop.run_in_executor(_get_executor(), _finalize_quick, session, samples)
-        full_len = len(result_full.get("text", ""))
-        quick_len = len(result_quick.get("text", ""))
-        if quick_len > full_len:
-            print(f"  Using quick result ({quick_len} > {full_len} chars)")
-            result = result_quick
-        else:
-            result = result_full
+        # Always use full re-transcription. The previous "longer wins" heuristic
+        # designed for rap/dense audio (where full might truncate) backfired:
+        # when streaming hallucinated extra English garbage at the tail
+        # ("Waiver Machine") it made quick "win" on character count, polluting
+        # the final output. Full now delegates to _transcribe_file_sync, which
+        # uses VAD-based grouping (SILENCE_GAP_SEC=1.0) to merge short adjacent
+        # segments — this is the same code path the working /transcribe endpoint
+        # uses and it correctly handles the short-isolated-segment case.
+        result = await loop.run_in_executor(_get_executor(), _finalize_full, session, samples)
     return result
 
 
@@ -1020,85 +1016,36 @@ def _finalize_quick(session: dict, samples: np.ndarray) -> dict:
 
 
 def _finalize_full(session: dict, samples: np.ndarray) -> dict:
-    """Full finalize: re-transcribe all streaming segments with context, plus tail.
+    """Full finalize: re-transcribe full audio via the VAD-grouped pipeline.
 
-    Uses streaming VAD segments as boundaries, re-transcribes each for accuracy
-    (with previous text as context), and always includes trailing audio.
-    Falls back to VAD on full audio if streaming produced no segments.
+    Delegates to _transcribe_file_sync for VAD-based grouping (SILENCE_GAP_SEC=1.0)
+    that merges short adjacent segments into longer chunks before transcription.
+    This ensures short trailing segments (e.g. a 1.1s "Whisper模型" tail) get
+    transcribed WITH adjacent context audio rather than in isolation, avoiding
+    the FunASR hallucination where short isolated segments emit English garbage.
+
+    The previous implementation used streaming-derived segment boundaries and
+    re-transcribed each one individually — which inherited the same isolation
+    bug. By delegating to _transcribe_file_sync (the same code path /transcribe
+    uses) we get correct behavior without duplicating the grouping logic.
     """
     duration_sec = len(samples) / SAMPLE_RATE
     rms = audio_rms(samples)
-    print(f"Full finalize: {duration_sec:.1f}s, rms={rms:.4f}, streaming_segs={len(session['transcribed_segments'])}")
+    print(f"Full finalize: {duration_sec:.1f}s, rms={rms:.4f}")
 
     if duration_sec < 0.3 or rms < 0.005:
-        full_text = session["full_text"]
+        full_text = session.get("full_text", "")
     else:
-        # Build segment boundaries from streaming VAD
-        seg_boundaries = [(s["start"], s["end"]) for s in session["transcribed_segments"]]
-
-        # If streaming produced no segments, run VAD on full audio
-        if not seg_boundaries:
-            silence_pad = np.zeros(int(SAMPLE_RATE * 0.6), dtype=np.float32)
-            padded = np.concatenate([samples, silence_pad])
-            timestamps = run_vad(padded)
-            seg_boundaries = [(ts["start"], min(ts["end"], len(samples))) for ts in timestamps]
-
-        # Re-transcribe each segment with context
-        texts = []
-        last_end = 0
-        for start, end in seg_boundaries:
-            seg_audio = samples[start:end]
-            if len(seg_audio) < 1600:
-                continue
-            ctx = " ".join(texts[-2:]) if texts else ""
-            text = transcribe_segment(seg_audio, context=ctx, tokens_per_sec=25, vad_confirmed=True)
-            if text:
-                texts.append(text)
-            last_end = end
-
-        # Always include trailing audio after last segment (never drop).
-        # Use VAD to find speech in the tail — avoids the RMS prefilter
-        # rejecting tail audio where speech is surrounded by silence.
-        if last_end < len(samples):
-            tail = samples[last_end:]
-            if len(tail) >= 1600 and audio_rms(tail) >= 0.005:
-                tail_timestamps = run_vad(tail)
-                if tail_timestamps:
-                    for ts in tail_timestamps:
-                        seg_audio = tail[ts["start"]:ts["end"]]
-                        if len(seg_audio) < 1600:
-                            continue
-                        ctx = " ".join(texts[-2:]) if texts else ""
-                        seg_text = transcribe_segment(seg_audio, context=ctx,
-                                                      tokens_per_sec=25, skip_prefilter=True, vad_confirmed=True)
-                        if seg_text:
-                            texts.append(seg_text)
-                            print(f"  Tail segment: '{seg_text}'")
-                else:
-                    # VAD found nothing — try direct transcription as fallback
-                    ctx = " ".join(texts[-2:]) if texts else ""
-                    tail_text = transcribe_segment(tail, context=ctx,
-                                                   tokens_per_sec=25, skip_prefilter=True, vad_confirmed=True)
-                    if tail_text:
-                        texts.append(tail_text)
-                        print(f"  Tail: '{tail_text}'")
-
-        full_text = " ".join(texts) if texts else ""
-
-        if full_text and output_traditional:
-            full_text = convert_to_traditional(full_text)
-
-        # Use streaming result if it has more content
-        streaming_text = session["full_text"]
-        if not full_text or len(full_text) < len(streaming_text):
-            full_text = streaming_text
-            print(f"  Using streaming ({len(streaming_text)} > {len(full_text or '')} chars)")
-        else:
-            print(f"  Final ({len(full_text)} chars): '{full_text[:80]}...'")
+        full_text = _transcribe_file_sync(samples)
+        # Fall back to streaming text if the file-sync path returned nothing
+        # (e.g., VAD found no speech but streaming did).
+        if not full_text:
+            full_text = session.get("full_text", "")
+        print(f"  Final ({len(full_text)} chars): '{full_text[:80]}'")
 
     return {
         "text": full_text,
-        "segments": len(session["transcribed_segments"]),
+        "segments": len(session.get("transcribed_segments", [])),
         "duration": round(duration_sec, 2),
     }
 
