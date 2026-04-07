@@ -406,10 +406,17 @@ def _transcribe_funasr(audio: np.ndarray, context: str = "", tokens_per_sec: int
 
     # Build prompt: base vocabulary + recent context for continuity.
     # IMPORTANT: Keep prompt in the target language — English text in the prompt
-    # primes the LLM decoder to output English (translating instead of transcribing).
+    # primes the LLM decoder to output English (translating instead of
+    # transcribing). And avoid meta-linguistic words like "翻译" entirely:
+    # FunASR's decoder is autoregressive and LLM-like, so saying "不翻译"
+    # ("don't translate") primes it toward translation/language-labeling even
+    # though the instruction is negated. Combined with a trailing Chinese
+    # context sentence, it reliably causes the model to drop the real audio
+    # transcription and emit "So you're a Chinese." or similar meta-labels.
+    # See the investigation in archive-pre-public for the full diagnosis.
     prompt = initial_prompt or ""
     if asr_language in ("zh", "auto"):
-        prompt = f"只做语音转文字，不翻译。{prompt}".strip()
+        prompt = f"以下是中文语音。{prompt}".strip()
     if context:
         ctx_tail = context[-200:]
         prompt = f"{prompt} {ctx_tail}".strip()
