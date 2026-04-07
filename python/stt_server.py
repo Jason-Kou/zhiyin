@@ -302,6 +302,22 @@ _HALLUCINATION_PHRASES = {
     # Common single-word phantom outputs from breath/noise at end of recording
     "okay", "ok", "bye", "yeah", "yes", "no", "嗯", "啊", "哦",
     "thank you", "thanks",
+    # Meta-language hallucinations — model self-labels the speaker's language.
+    # These leak in from training data (captioned/annotated speech corpora) and
+    # get appended after legitimate Chinese/Japanese/etc. speech. No real speaker
+    # ever says "So you're a Chinese" about themselves. Covers both contracted
+    # ("you're") and full ("you are") forms.
+    "so you're a chinese", "so you're chinese",
+    "so you are a chinese", "so you are chinese",
+    "you're a chinese", "you're chinese",
+    "you are a chinese", "you are chinese",
+    "i'm chinese", "i am chinese",
+    "this is chinese", "this is in chinese", "in chinese",
+    "speaking in chinese", "chinese speaker",
+    "so you're japanese", "so you are japanese",
+    "i'm japanese", "i am japanese",
+    "so you're korean", "so you are korean",
+    "i'm korean", "i am korean",
 }
 
 
@@ -309,6 +325,39 @@ def _is_known_hallucination(text: str) -> bool:
     """Check if text matches known hallucination patterns."""
     clean = text.strip().lower().rstrip("。.!！")
     return clean in _HALLUCINATION_PHRASES
+
+
+def _strip_trailing_hallucinations(text: str) -> str:
+    """Peel known hallucination phrases off the END of a transcription.
+
+    FunASR/Whisper sometimes append spurious "closing remarks" after legitimate
+    speech — e.g., "So you're a Chinese." at the end of a Chinese utterance, or
+    "Thanks for watching." at the end of lecture audio. The overall-segment RMS
+    check in is_hallucination() does not catch these because the segment has
+    real speech energy from the legitimate part.
+
+    This function splits the output by sentence-ending punctuation (both CJK
+    and ASCII) and pops trailing sentences whose entire content matches a
+    known hallucination phrase. Middle/leading hallucinations and legitimate
+    mixed-language content are untouched.
+    """
+    import re
+    # Split right AFTER each sentence-ending punctuation (zero-width lookbehind).
+    # We intentionally don't consume the following whitespace, so joining back
+    # with "" preserves the original spacing for space-separated languages.
+    sentences = re.split(r'(?<=[。！？.!?])', text)
+    while sentences:
+        last = sentences[-1]
+        # Pop artifact empty/whitespace tail from the split
+        if not last.strip():
+            sentences.pop()
+            continue
+        clean = last.strip().lower().rstrip("。.!！？?")
+        if clean in _HALLUCINATION_PHRASES:
+            sentences.pop()
+            continue
+        break
+    return "".join(sentences).rstrip()
 
 
 def _has_repetition(text: str) -> bool:
@@ -371,6 +420,12 @@ def _transcribe_funasr(audio: np.ndarray, context: str = "", tokens_per_sec: int
     result = asr_model.generate(audio, language=asr_language, initial_prompt=prompt, max_tokens=max_tokens, task="transcribe")
     text = clean_text(result.text)
 
+    # Peel spurious closing remarks off the tail (meta-language self-labels etc.)
+    original = text
+    text = _strip_trailing_hallucinations(text)
+    if text != original:
+        print(f"Stripped trailing hallucination: '{original}' -> '{text}'")
+
     # Post-check: reject hallucinated output (skip RMS gate if VAD confirmed speech)
     if text and not vad_confirmed and is_hallucination(text, audio):
         print(f"Rejected hallucination: '{text}' (rms={rms:.4f}, dur={duration_sec:.2f}s)")
@@ -417,6 +472,12 @@ def _transcribe_whisper(audio: np.ndarray, context: str = "",
         condition_on_previous_text=True,
     )
     text = result["text"].strip()
+
+    # Peel spurious closing remarks off the tail (meta-language self-labels etc.)
+    original = text
+    text = _strip_trailing_hallucinations(text)
+    if text != original:
+        print(f"Stripped trailing hallucination (whisper): '{original}' -> '{text}'")
 
     # Post-check: reject hallucinated output (skip RMS gate if VAD confirmed speech)
     if text and not vad_confirmed and is_hallucination(text, audio):
