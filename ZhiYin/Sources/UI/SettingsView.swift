@@ -864,9 +864,13 @@ struct HistorySettingsTab: View {
                         Text("\(recordingCount) recordings")
                             .font(.callout)
                             .fontWeight(.medium)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                         Text(storageSize)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
 
                     Spacer()
