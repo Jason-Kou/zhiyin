@@ -117,7 +117,16 @@ def remove_repetition_loops(text: str) -> str:
 
 
 def load_initial_prompt() -> str | None:
-    """Load personal dictionary and build an initial_prompt for vocabulary biasing."""
+    """Load personal dictionary and build an initial_prompt for vocabulary biasing.
+
+    IMPORTANT: do NOT prefix the vocab list with an English meta-label like
+    "Vocabulary:". When combined with the Chinese language hint and a trailing
+    Chinese context sentence in _transcribe_funasr, that English label primes
+    FunASR's autoregressive decoder into English/translation mode and causes
+    it to emit translated or meta-labeled output instead of transcribing the
+    actual audio. Use a language-neutral `、` (Chinese enumeration comma)
+    separator — the words themselves provide all the biasing the model needs.
+    """
     dict_path = os.path.expanduser("~/Library/Application Support/ZhiYin/dictionary.json")
     if not os.path.exists(dict_path):
         return None
@@ -127,7 +136,7 @@ def load_initial_prompt() -> str | None:
         words = [e["replacement"] for e in entries if e.get("replacement")]
         if not words:
             return None
-        prompt = "Vocabulary: " + ", ".join(words)
+        prompt = "、".join(words)
         print(f"Loaded initial_prompt: {prompt}")
         return prompt
     except Exception as e:
