@@ -74,11 +74,11 @@ Free tier includes **50 transcriptions per day** with full voice input functiona
 
 | | **ZhiYin** | **macOS Dictation** | **Superwhisper** | **VoiceInk** | **WeChat Voice Input** |
 |---|---|---|---|---|---|
-| 13 languages | Yes | Limited | Yes | 100+ | No |
+| Languages | 14 | Limited | 100+ (Whisper) | 100+ (Whisper) | Chinese + a few |
 | Offline | Yes | Partial (on-device available) | Yes | Yes | No (requires internet) |
 | Latency | ~0.5s | ~1-2s | ~1s | ~1s | Slow on long audio |
+| Traditional Chinese output | Yes (toggle) | Separate language pack | No | No | Yes |
 | Personal dictionary | Yes | No | No | No | No |
-| AI enhancement | Yes (Ollama) | No | Yes (cloud) | Yes (cloud) | No |
 | System-wide | Yes | Yes | Yes | Yes | Yes |
 | Price | Free / $12 Pro | Free | $10/mo | $25 | Free |
 
