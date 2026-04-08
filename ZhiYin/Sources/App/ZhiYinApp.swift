@@ -102,6 +102,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusMenu: NSMenu?
     private var hideDockIconItem: NSMenuItem?
     private var historyWindow: NSWindow?
+    private var updateMenuItem: NSMenuItem?
+    private var updateMenuSeparator: NSMenuItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         print("=== ZhiYin applicationDidFinishLaunching START ===")
@@ -172,12 +174,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
         }
 
-        // Check for updates (non-blocking)
+        // Bug #4: when a manual Settings check finds an update, refresh the status menu
+        NotificationCenter.default.addObserver(
+            forName: .zhiyinUpdateFound,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.addUpdateMenuItem()           // idempotent — safe to call repeatedly
+            self?.showUpdateAlertIfNeeded()     // also show alert if not yet dismissed for this version
+        }
+
+        // Check for updates (non-blocking). check() self-retries internally.
         Task {
             await UpdateChecker.shared.check()
             await MainActor.run {
                 if UpdateChecker.shared.hasUpdate {
                     self.addUpdateMenuItem()
+                    self.showUpdateAlertIfNeeded()
                 }
             }
         }
@@ -1137,14 +1149,47 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func addUpdateMenuItem() {
         guard let menu = statusMenu else { return }
+        if updateMenuItem != nil { return }  // Bug #4: already added, don't double-insert
         let version = UpdateChecker.shared.latestVersion ?? "new"
         let item = NSMenuItem(title: "Update Available: v\(version)", action: #selector(openUpdatePage), keyEquivalent: "")
         item.target = self
         item.image = NSImage(systemSymbolName: "arrow.down.circle", accessibilityDescription: nil)
+        let separator = NSMenuItem.separator()
         // Insert before the Quit separator
         let insertIndex = max(0, menu.numberOfItems - 2)
         menu.insertItem(item, at: insertIndex)
-        menu.insertItem(NSMenuItem.separator(), at: insertIndex)
+        menu.insertItem(separator, at: insertIndex)
+        updateMenuItem = item
+        updateMenuSeparator = separator
+    }
+
+    func showUpdateAlertIfNeeded() {
+        guard let latest = UpdateChecker.shared.latestVersion else { return }
+        let dismissedKey = "updateAlertDismissedVersion"
+        let dismissed = UserDefaults.standard.string(forKey: dismissedKey)
+        if dismissed == latest { return }  // already dismissed this version — don't nag
+
+        let alert = NSAlert()
+        alert.messageText = "ZhiYin Update Available"
+        alert.informativeText = "A new version is available.\n\nCurrent: v\(UpdateChecker.currentVersion)\nLatest: v\(latest)"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Download")
+        alert.addButton(withTitle: "Later")
+
+        // Bring the alert to the foreground (LSUIElement=true menu-bar apps have no focus by default)
+        NSApp.activate(ignoringOtherApps: true)
+
+        let response = alert.runModal()
+        UserDefaults.standard.set(latest, forKey: dismissedKey)  // mark dismissed regardless of choice
+        if response == .alertFirstButtonReturn {
+            // Download
+            if let urlStr = UpdateChecker.shared.downloadURL, let url = URL(string: urlStr) {
+                NSWorkspace.shared.open(url)
+            } else {
+                NSWorkspace.shared.open(UpdateChecker.shared.releasesPageURL)
+            }
+        }
+        // "Later" — do nothing extra; dismissed key already set above
     }
 
     @objc func openUpdatePage() {
