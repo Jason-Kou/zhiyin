@@ -668,6 +668,8 @@ struct LicenseTab: View {
     @StateObject private var updater = UpdateChecker.shared
     @StateObject private var licenseManager = LicenseManager.shared
     @State private var keyInput = ""
+    @State private var isChecking = false
+    @State private var checkResult: String? = nil
 
     private static let zhiyinGreen = Color(red: 0.35, green: 0.78, blue: 0.48)
 
@@ -709,29 +711,6 @@ struct LicenseTab: View {
                     }
                 }
 
-                SettingsSection("Updates") {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Current version: \(UpdateChecker.currentVersion)")
-                                .font(.callout)
-                            if updater.hasUpdate, let version = updater.latestVersion {
-                                Text("v\(version) available")
-                                    .font(.caption)
-                                    .foregroundStyle(Self.zhiyinGreen)
-                            } else {
-                                Text("You're up to date")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        Spacer()
-                        Button("Check for Updates") {
-                            Task { await UpdateChecker.shared.check() }
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    }
-                }
             } else {
                 // Free user view
                 SettingsSection("Free Tier Usage") {
@@ -786,6 +765,52 @@ struct LicenseTab: View {
                         .controlSize(.small)
                     }
                 }
+            }
+            // Updates section visible to ALL users (Bug #2)
+            updatesSection
+        }
+    }
+
+    private var updatesSection: some View {
+        SettingsSection("Updates") {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Current version: \(UpdateChecker.currentVersion)")
+                        .font(.callout)
+                    if let result = checkResult {
+                        Text(result)
+                            .font(.caption)
+                            .foregroundStyle(updater.hasUpdate ? Self.zhiyinGreen : .secondary)
+                    } else if updater.hasUpdate, let version = updater.latestVersion {
+                        Text("v\(version) available")
+                            .font(.caption)
+                            .foregroundStyle(Self.zhiyinGreen)
+                    } else {
+                        Text("You're up to date")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                Button(isChecking ? "Checking..." : "Check for Updates") {
+                    Task {
+                        isChecking = true
+                        checkResult = nil
+                        await UpdateChecker.shared.check()
+                        isChecking = false
+                        if updater.hasUpdate, let v = updater.latestVersion {
+                            checkResult = "Update available: v\(v)"
+                        } else {
+                            checkResult = "You're up to date (v\(UpdateChecker.currentVersion))"
+                        }
+                        // Auto-clear inline result after 5 seconds so the section returns to its default state
+                        try? await Task.sleep(nanoseconds: 5_000_000_000)
+                        checkResult = nil
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(isChecking)
             }
         }
     }
