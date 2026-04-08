@@ -86,7 +86,7 @@ Free tier includes **50 transcriptions per day** with full voice input functiona
 
 | Component | Technology |
 |-----------|------------|
-| STT engine | [FunASR MLX](https://github.com/FunAudioLLM/SenseVoice) (Alibaba DAMO) |
+| STT engine | [FunASR MLX](https://github.com/FunAudioLLM/SenseVoice) (Alibaba DAMO, default) or [Whisper Large v3 Turbo](https://github.com/openai/whisper) (OpenAI, 99 languages) |
 | Runtime | MLX on Apple Silicon (Neural Engine + GPU) |
 | Frontend | Swift (SwiftUI + AppKit) |
 | Backend | Python (FastAPI + uvicorn) |

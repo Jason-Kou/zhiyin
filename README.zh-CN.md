@@ -72,21 +72,21 @@ cd zhiyin
 
 ## 对比
 
-| | **知音** | **macOS 听写** | **Superwhisper** | **微信语音输入** |
-|---|---|---|---|---|
-| 中文优化 | 是 | 部分 | 否 | 是 |
-| 离线使用 | 是 | 部分（支持本地模型） | 是 | 否（需要联网） |
-| 延迟 | ~0.5 秒 | ~1-2 秒 | ~1 秒 | 长语音容易卡顿 |
-| 个人词典 | 是 | 否 | 否 | 否 |
-| AI 润色 | 是（Ollama） | 否 | 是（云端） | 否 |
-| 全局可用 | 是 | 是 | 是 | 是 |
-| 价格 | 免费 / $12 Pro | 免费 | $10/月 | 免费 |
+| | **知音** | **macOS 听写** | **Superwhisper** | **VoiceInk** | **微信语音输入** |
+|---|---|---|---|---|---|
+| 支持语言 | 14 种 | 有限 | 100+（Whisper） | 100+（Whisper） | 中文 + 少量 |
+| 离线使用 | 是 | 部分（支持本地模型） | 是 | 是 | 否（需要联网） |
+| 延迟 | ~0.5 秒 | ~1-2 秒 | ~1 秒 | ~1 秒 | 长语音容易卡顿 |
+| 繁体中文输出 | 是（可切换） | 需单独语言包 | 否 | 否 | 是 |
+| 个人词典 | 是 | 否 | 否 | 否 | 否 |
+| 全局可用 | 是 | 是 | 是 | 是 | 是 |
+| 价格 | 免费 / $12 Pro | 免费 | $10/月 | $25 | 免费 |
 
 ## 技术架构
 
 | 组件 | 技术 |
 |------|------|
-| 语音识别 | [FunASR MLX](https://github.com/FunAudioLLM/SenseVoice)（阿里达摩院） |
+| 语音识别 | [FunASR MLX](https://github.com/FunAudioLLM/SenseVoice)（阿里达摩院，默认）或 [Whisper Large v3 Turbo](https://github.com/openai/whisper)（OpenAI，99 种语言） |
 | 运行时 | MLX on Apple Silicon（Neural Engine + GPU） |
 | 前端 | Swift（SwiftUI + AppKit） |
 | 后端 | Python（FastAPI + uvicorn） |
