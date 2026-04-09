@@ -115,6 +115,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if UserDefaults.standard.string(forKey: "sttEngine") == "funasr-asr" {
             UserDefaults.standard.set("funasr", forKey: "sttEngine")
         }
+        // Final Touch is now always on; remove the orphan UserDefaults key
+        // so it doesn't linger across upgrades.
+        UserDefaults.standard.removeObject(forKey: "finalTouchEnabled")
         setupMenuBar()
         print("=== Menu bar done ===")
 
@@ -755,7 +758,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             lastChunkTask = nil
 
             var text: String?
-            let finalTouch = UserDefaults.standard.bool(forKey: "finalTouchEnabled")
+            // Final Touch is now always on. The streaming-only "else" branch
+            // below is preserved as dead code — flip this back to a UserDefaults
+            // read if/when streaming quality matures enough to justify the
+            // latency tradeoff.
+            let finalTouch = true
 
             if finalTouch {
                 // Final Touch ON: upload whole audio for best accuracy

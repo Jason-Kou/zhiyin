@@ -244,7 +244,6 @@ struct GeneralTab: View {
     @AppStorage("selectedHotkey") private var selectedHotkeyRaw = HotkeyOption.leftControlOption.rawValue
     @AppStorage("outputTraditionalChinese") private var outputTraditionalChinese = false
     @AppStorage("recognitionLanguage") private var recognitionLanguage = "auto"
-    @AppStorage("finalTouchEnabled") private var finalTouchEnabled = true
     @AppStorage("sttEngine") private var sttEngine = "funasr"
     @State private var audioDevices: [AudioInputDevice] = []
     @StateObject private var modelManager = ModelManager.shared
@@ -368,18 +367,6 @@ struct GeneralTab: View {
                         }
                 }
                 Text("Output traditional characters for Chinese transcription.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Divider()
-
-                SettingRow("Final Touch") {
-                    Toggle("", isOn: $finalTouchEnabled)
-                        .toggleStyle(.switch)
-                        .controlSize(.mini)
-                        .labelsHidden()
-                }
-                Text("Higher accuracy but slightly slower: shows real-time preview while speaking, then re-transcribes full audio on release for best results.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
