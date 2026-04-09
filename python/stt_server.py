@@ -99,11 +99,12 @@ _download_progress: dict = {}  # repo_id -> {status, progress, error}
 
 
 def clean_text(text: str) -> str:
-    """Remove FunASR special tokens and repetition loops."""
+    """Remove FunASR special tokens, repetition loops, and standalone fillers."""
     text = re.sub(r'\[[^\]]*\]', '', text)
     text = re.sub(r'\(\(\)\)', '', text)
     text = re.sub(r'\s*/sil\s*', ' ', text)  # Remove /sil silence markers
     text = remove_repetition_loops(text)
+    text = remove_filler_words(text)
     return text.strip()
 
 
@@ -114,6 +115,99 @@ def remove_repetition_loops(text: str) -> str:
     # Pattern: a chunk of 1-30 chars (with optional separator) repeated 4+ times
     text = re.sub(r'(.{1,30}?)\s*[/，,。\s]*\s*(\1\s*[/，,。\s]*\s*){3,}', r'\1', text)
     return text
+
+
+# Filler word removal — conservative "standalone only" matching.
+#
+# Removes 呃/嗯/啊/哦/诶/额 and uh/um/er/erm when they appear as isolated
+# tokens — i.e. surrounded by punctuation, whitespace, or string boundaries.
+# Does NOT touch fillers embedded in adjacent Chinese characters:
+#   - "呃有个问题" → preserved (呃 followed by 有, not a boundary)
+#   - "功能啊，" → preserved (啊 preceded by 能, not a boundary)
+#   - "你好啊" → preserved (啊 preceded by 好, not a boundary)
+#   - "，呃，" → removed
+#   - "嗯。" → removed
+#   - "uh, hello" → "hello"
+_FILLER_BOUNDARY = (
+    "，。！？、；：（）《》【】"   # Chinese punctuation
+    "\"'“”‘’"                      # ASCII + curly quotes
+    ",.!?:;()\\-—…"                # English punctuation (hyphen escaped)
+    r"\s"                           # whitespace
+)
+_ZH_FILLER_PATTERN = re.compile(
+    r'(^|[' + _FILLER_BOUNDARY + r'])[呃嗯啊哦诶额]+(?=[' + _FILLER_BOUNDARY + r']|$)'
+)
+_EN_FILLER_PATTERN = re.compile(
+    r'\b(?:uh+|um+|er+|erm+)\b[,.!?]?',
+    re.IGNORECASE,
+)
+_FILLER_WS_CLEANUP = re.compile(r'\s+')
+_FILLER_DUP_PUNCT = re.compile(r'([，。！？、；：,.!?:;])\1+')
+# Drop weak punctuation (comma-class) immediately followed by any stronger
+# punctuation left behind after filler removal — e.g. "王总，。" → "王总。",
+# "王总，；好的" → "王总；好的".
+_FILLER_WEAK_BEFORE_STRONG = re.compile(r'[，、,]+(?=[。！？；：.!?:;])')
+_FILLER_LEADING_WEAK = re.compile(r'^[，、；：,:;\s]+')
+_FILLER_TRAILING_WEAK = re.compile(r'[，、；：,:;\s]+$')
+_FILLER_ALL_PUNCT = re.compile(r'[\s，。！？、；：（）《》【】"\'“”‘’(),.!?:;\-—…]*$')
+
+
+def remove_filler_words(text: str) -> str:
+    """Remove standalone filler words (呃嗯啊哦诶额 / uh um er erm).
+
+    Conservative: only matches fillers surrounded by punctuation, whitespace,
+    or string boundaries. Never touches fillers embedded in adjacent Chinese
+    characters. See comment block above for examples.
+    """
+    if not text:
+        return text
+    # Chinese: preserve the leading boundary char (keep the comma before etc.)
+    text = _ZH_FILLER_PATTERN.sub(lambda m: m.group(1), text)
+    # English: use word boundaries; drop filler + optional trailing punct
+    text = _EN_FILLER_PATTERN.sub('', text)
+    # Collapse doubled whitespace and doubled consecutive punctuation
+    text = _FILLER_WS_CLEANUP.sub(' ', text)
+    text = _FILLER_DUP_PUNCT.sub(r'\1', text)
+    # Drop orphan weak punctuation left immediately before a stronger one
+    text = _FILLER_WEAK_BEFORE_STRONG.sub('', text)
+    # Strip leading/trailing WEAK punctuation (commas, semicolons) left behind;
+    # keep strong terminators (periods, ?, !)
+    text = _FILLER_LEADING_WEAK.sub('', text)
+    text = _FILLER_TRAILING_WEAK.sub('', text)
+    # If only punctuation/whitespace remains (filler-only input), return empty
+    if _FILLER_ALL_PUNCT.fullmatch(text):
+        return ""
+    return text
+
+
+# Punctuation set used when joining per-group transcription outputs.
+_JOIN_BOUNDARY_PUNCT = set("，。！？、；：,.!?:;")
+
+
+def join_group_texts(texts: list) -> str:
+    """Concatenate per-group transcription outputs, inserting '，' at group
+    boundaries when neither side has punctuation.
+
+    Rationale: VAD groups split audio at silence gaps that don't always
+    correspond to natural sentence boundaries. FunASR often leaves a group's
+    output without a trailing punctuation mark when the audio ends
+    mid-clause. A naive ''.join(texts) smashes adjacent groups together
+    (e.g. "我加了显示" + "加了标点符号" → "我加了显示加了标点符号").
+
+    This helper inserts a comma ONLY when both sides of the join are punct-
+    less, preserving any existing punctuation.
+    """
+    if not texts:
+        return ""
+    joined = ""
+    for t in texts:
+        t = t.strip() if t else ""
+        if not t:
+            continue
+        if joined and joined[-1] not in _JOIN_BOUNDARY_PUNCT and t[0] not in _JOIN_BOUNDARY_PUNCT:
+            joined += "，"
+        joined += t
+    return joined
 
 
 def load_initial_prompt() -> str | None:
@@ -488,6 +582,9 @@ def _transcribe_whisper(audio: np.ndarray, context: str = "",
         condition_on_previous_text=True,
     )
     text = result["text"].strip()
+    # Whisper bypasses clean_text (which only handles FunASR tokens),
+    # so call filler removal explicitly here to keep both engines consistent.
+    text = remove_filler_words(text)
 
     # Peel spurious closing remarks off the tail (meta-language self-labels etc.)
     original = text
@@ -736,7 +833,16 @@ def _transcribe_file_sync(audio: np.ndarray) -> str:
         current_group_end = speech_ts[i]["end"]
     groups.append((current_group_start, current_group_end))
 
-    # Transcribe each group with padding
+    # Transcribe each group with padding.
+    #
+    # NOTE: we intentionally pass context="" (empty initial_prompt) instead of
+    # stitching together previously-transcribed texts. FunASR's initial_prompt
+    # parameter is designed for vocabulary biasing, NOT conversational context.
+    # When previous text is fed in, FunASR produces truncated output — for
+    # example, a 5.5s chunk containing a full clause will be reduced to just
+    # the last word of the prompt. Empty context produces complete transcripts.
+    # See .planning/notes/funasr-context-prompt-bug.md for evidence and
+    # regression test case.
     PAD_SAMPLES = int(SAMPLE_RATE * 0.3)  # 300ms padding around each group
     texts = []
     for start, end in groups:
@@ -753,17 +859,18 @@ def _transcribe_file_sync(audio: np.ndarray) -> str:
                 sub = chunk[j:j + MAX_CHUNK_SAMPLES]
                 if len(sub) < 1600:
                     continue
-                ctx = " ".join(texts[-2:]) if texts else ""
-                t = transcribe_segment(sub, context=ctx, tokens_per_sec=25, skip_prefilter=True, vad_confirmed=True)
+                t = transcribe_segment(sub, context="", tokens_per_sec=25, skip_prefilter=True, vad_confirmed=True)
                 if t:
                     texts.append(t)
         else:
-            ctx = " ".join(texts[-2:]) if texts else ""
-            t = transcribe_segment(chunk, context=ctx, tokens_per_sec=25, skip_prefilter=True, vad_confirmed=True)
+            t = transcribe_segment(chunk, context="", tokens_per_sec=25, skip_prefilter=True, vad_confirmed=True)
             if t:
                 texts.append(t)
 
-    text = "".join(texts)
+    # Smart join: insert '，' at group boundaries where neither side has punct.
+    # Avoids smashing adjacent groups together (e.g. "我加了显示" + "加了标点符号"
+    # → "我加了显示加了标点符号"). See join_group_texts docstring for rationale.
+    text = join_group_texts(texts)
 
     if text and output_traditional:
         text = convert_to_traditional(text)
@@ -962,8 +1069,9 @@ def _finalize_quick(session: dict, samples: np.ndarray) -> dict:
                 chunk = seg_audio[i:i + MAX_CHUNK]
                 if len(chunk) < 1600:
                     continue
-                ctx = " ".join(texts[-2:]) if texts else ""
-                chunk_text = transcribe_segment(chunk, context=ctx, tokens_per_sec=25)
+                # context="" — FunASR's initial_prompt gets poisoned by
+                # previous-text stitching (see _transcribe_file_sync).
+                chunk_text = transcribe_segment(chunk, context="", tokens_per_sec=25)
                 if chunk_text and not is_hallucination(chunk_text, chunk):
                     texts.append(chunk_text)
         else:
@@ -988,8 +1096,7 @@ def _finalize_quick(session: dict, samples: np.ndarray) -> dict:
                 seg_audio = remaining[ts["start"]:ts["end"]]
                 if len(seg_audio) < 1600:
                     continue
-                ctx = " ".join(texts[-2:]) if texts else ""
-                seg_text = transcribe_segment(seg_audio, context=ctx,
+                seg_text = transcribe_segment(seg_audio, context="",
                                               tokens_per_sec=25, skip_prefilter=True)
                 if seg_text and not is_hallucination(seg_text, seg_audio):
                     texts.append(seg_text)
@@ -997,8 +1104,7 @@ def _finalize_quick(session: dict, samples: np.ndarray) -> dict:
         elif audio_rms(remaining) >= 0.01:
             # VAD found nothing but there's some energy — try direct transcription
             # with skip_prefilter since recording has ended
-            ctx = " ".join(texts[-2:]) if texts else ""
-            tail_text = transcribe_segment(remaining, context=ctx,
+            tail_text = transcribe_segment(remaining, context="",
                                            tokens_per_sec=25, skip_prefilter=True)
             if tail_text and not is_hallucination(tail_text, remaining):
                 texts.append(tail_text)
