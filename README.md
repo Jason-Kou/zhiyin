@@ -19,6 +19,7 @@ ZhiYin is a macOS menu-bar app for lightning-fast voice input. Supports **14 lan
 ## Features
 
 - **Push-to-talk** — Hold `Option+Space`, speak, release to transcribe
+- **Real-time preview** — Transcription appears live as you speak, finalized on release for best accuracy
 - **14 languages** — Chinese, English, Japanese, Korean, Cantonese, and more
 - **Auto language detection** — Let the model identify the language automatically
 - **Two STT models** — FunASR (default, optimized for Chinese) or Whisper Large v3 Turbo (99 languages)
@@ -28,7 +29,7 @@ ZhiYin is a macOS menu-bar app for lightning-fast voice input. Supports **14 lan
 - **System-wide** — Works in any app that accepts text input
 - **Context aware** — Captures selected text and browser URL for smarter results
 - **Personal dictionary** — Custom term corrections for your domain
-- **Free forever** — No trial timer, no expiration
+- **Free forever** — 50 transcriptions/day free, $12 Pro unlocks unlimited
 
 ## Install
 

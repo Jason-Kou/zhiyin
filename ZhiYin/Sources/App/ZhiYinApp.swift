@@ -809,13 +809,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
 
                 await MainActor.run {
-                    RecordingOverlayController.shared.dismiss()
+                    // Paste FIRST while target app still has focus, then dismiss overlay
                     let injected = textInjector?.injectText(processed) ?? false
                     if injected {
                         flashStatus("\u{2713} Done", icon: "checkmark.circle")
                     } else {
                         flashStatus("\u{2717} No Permission", icon: "exclamationmark.triangle")
                     }
+                    RecordingOverlayController.shared.dismiss()
                     self.recordingState = .idle
                     print("RecordingState: finalizing -> idle")
                 }
