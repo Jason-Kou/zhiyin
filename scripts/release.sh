@@ -183,7 +183,12 @@ ok "committed on dev: $(git rev-parse --short dev)"
 # ── Step 3: switch to main + squash merge ────────────────────
 log "[3/10] Squash-merging dev into main"
 git checkout main --quiet
-git merge --squash dev >/dev/null
+# -X theirs: after a squash-merge, main holds textually identical content
+# to a past dev commit but without git blood relation, so the NEXT squash
+# sees the "same" change from both sides and raises 3-way conflicts.
+# Since dev is always a superset of main in this workflow, taking dev's
+# side on every conflict is always correct.
+git merge --squash -X theirs dev >/dev/null
 ok "$((SQUASH_COUNT + 1)) commits squashed and staged"
 
 # ── Step 4: commit on main with CHANGELOG body ───────────────
