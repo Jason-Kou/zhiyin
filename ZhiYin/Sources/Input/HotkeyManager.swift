@@ -5,42 +5,48 @@ import Carbon
 // MARK: - Hotkey Options
 
 enum HotkeyOption: String, CaseIterable, Identifiable {
-    case leftControlOption = "leftControlOption"
-    case rightControlOption = "rightControlOption"
-    case leftControlCommand = "leftControlCommand"
+    // Single-key options first (simpler, may conflict with other apps)
     case rightControl = "rightControl"
     case leftControl = "leftControl"
     case rightOption = "rightOption"
     case leftOption = "leftOption"
-    case fnControl = "fnControl"
     case fn = "fn"
+    // Combo options (two keys, less likely to clash with other apps)
+    case fnOption = "fnOption"
+    case fnControl = "fnControl"
+    case leftControlOption = "leftControlOption"
+    case rightControlOption = "rightControlOption"
+    case leftControlCommand = "leftControlCommand"
+    // Disabled
     case none = "none"
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .leftControlOption: return "Left Control + Option"
-        case .rightControlOption: return "Right Control + Option"
-        case .leftControlCommand: return "Left Control + Command"
         case .rightControl: return "Right Control"
         case .leftControl: return "Left Control"
         case .rightOption: return "Right Option"
         case .leftOption: return "Left Option"
-        case .fnControl: return "Fn + Control"
         case .fn: return "Fn"
+        case .fnOption: return "Fn + Option"
+        case .fnControl: return "Fn + Control"
+        case .leftControlOption: return "Left Control + Option"
+        case .rightControlOption: return "Right Control + Option"
+        case .leftControlCommand: return "Left Control + Command"
         case .none: return "None (Disabled)"
         }
     }
 
     var symbol: String {
         switch self {
-        case .leftControlOption, .rightControlOption: return "⌃⌥"
-        case .leftControlCommand: return "⌃⌘"
         case .rightControl, .leftControl: return "⌃"
         case .rightOption, .leftOption: return "⌥"
+        case .fn: return "fn"
+        case .fnOption: return "fn⌥"
         case .fnControl: return "fn⌃"
-        case .fn: return ""
+        case .leftControlOption, .rightControlOption: return "⌃⌥"
+        case .leftControlCommand: return "⌃⌘"
         case .none: return "—"
         }
     }
@@ -48,7 +54,7 @@ enum HotkeyOption: String, CaseIterable, Identifiable {
     /// Whether this hotkey requires multiple modifier keys pressed together
     var isCombo: Bool {
         switch self {
-        case .leftControlOption, .rightControlOption, .leftControlCommand, .fnControl: return true
+        case .fnOption, .fnControl, .leftControlOption, .rightControlOption, .leftControlCommand: return true
         default: return false
         }
     }
@@ -78,10 +84,11 @@ enum HotkeyOption: String, CaseIterable, Identifiable {
     /// For combo options: the required keys and their corresponding flags
     var comboKeys: [(keyCode: UInt16, flag: CGEventFlags)]? {
         switch self {
+        case .fnOption: return [(0x3F, .maskSecondaryFn), (0x3A, .maskAlternate)]
+        case .fnControl: return [(0x3F, .maskSecondaryFn), (0x3B, .maskControl)]
         case .leftControlOption: return [(0x3B, .maskControl), (0x3A, .maskAlternate)]
         case .rightControlOption: return [(0x3E, .maskControl), (0x3D, .maskAlternate)]
         case .leftControlCommand: return [(0x3B, .maskControl), (0x37, .maskCommand)]
-        case .fnControl: return [(0x3F, .maskSecondaryFn), (0x3B, .maskControl)]
         default: return nil
         }
     }
@@ -156,8 +163,8 @@ class HotkeyManager {
         self.aiReplyKeyCode = savedKeyCode > 0 ? UInt16(savedKeyCode) : 0x25
 
         // AI Agent dedicated hotkey (default: none/disabled)
-        let savedAI = UserDefaults.standard.string(forKey: "selectedAIHotkey") ?? HotkeyOption.none.rawValue
-        self.selectedAIHotkey = HotkeyOption(rawValue: savedAI) ?? .none
+        let savedAI = UserDefaults.standard.string(forKey: "selectedAIHotkey") ?? HotkeyOption.fnOption.rawValue
+        self.selectedAIHotkey = HotkeyOption(rawValue: savedAI) ?? .fnOption
 
         requestAccessibilityIfNeeded()
         setupEventTap()

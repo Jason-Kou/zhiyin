@@ -753,6 +753,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             print("AI Reply is disabled")
             return
         }
+        // Screen Recording permission gate. Only relevant when the selected
+        // model supports vision — text-only models don't need a screenshot.
+        // macOS's own "allow screen recording" prompt jumps to the generic
+        // Privacy & Security pane; our alert deep-links to the Screen
+        // Recording pane directly so the user doesn't have to hunt.
+        if ContextualReplyManager.shared.currentModelSupportsVision,
+           !CGPreflightScreenCaptureAccess() {
+            showScreenRecordingPermissionAlert()
+            return
+        }
 
         print("AI Reply: starting")
         isAIReplyMode = true
@@ -1388,6 +1398,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     @objc func openAccessibilitySettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func showScreenRecordingPermissionAlert() {
+        // Triggering macOS's own access request here gets ZhiYin added to
+        // the Screen Recording list (even if grant is denied), which is
+        // the precondition for the user to flip the toggle manually.
+        _ = CGRequestScreenCaptureAccess()
+
+        let alert = NSAlert()
+        alert.messageText = "Screen Recording permission required"
+        alert.informativeText = "AI Agent reads your active window to pick the right agent and draft a reply. Grant access in System Settings → Privacy & Security → Screen & System Audio Recording, then try again."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Open Settings")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn,
+           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
             NSWorkspace.shared.open(url)
         }
     }

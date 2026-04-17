@@ -225,7 +225,8 @@ struct AIEnhancementTab: View {
 
 struct AIAgentTab: View {
     @AppStorage("aiReplyEnabled") private var isEnabled = false
-    @AppStorage("selectedAIHotkey") private var selectedAIHotkeyRaw = HotkeyOption.none.rawValue
+    @AppStorage("selectedAIHotkey") private var selectedAIHotkeyRaw = HotkeyOption.fnOption.rawValue
+    @AppStorage("selectedHotkey") private var selectedSTTHotkeyRaw = HotkeyOption.leftControlOption.rawValue
 
     @ObservedObject private var agentManager = AgentManager.shared
     @ObservedObject private var providerManager = AIProviderManager.shared
@@ -240,9 +241,13 @@ struct AIAgentTab: View {
 
     private var aiAgentHotkey: Binding<HotkeyOption> {
         Binding(
-            get: { HotkeyOption(rawValue: selectedAIHotkeyRaw) ?? .none },
+            get: { HotkeyOption(rawValue: selectedAIHotkeyRaw) ?? .fnOption },
             set: { selectedAIHotkeyRaw = $0.rawValue }
         )
+    }
+
+    private var sttHotkey: HotkeyOption {
+        HotkeyOption(rawValue: selectedSTTHotkeyRaw) ?? .leftControlOption
     }
 
     private var selectionModeBinding: Binding<AgentSelectionMode> {
@@ -393,13 +398,12 @@ struct AIAgentTab: View {
             // Section 3: Activation
             SettingsSection("Activation") {
                 SettingRow("AI Agent Hotkey") {
-                    Picker("", selection: aiAgentHotkey) {
-                        ForEach(HotkeyOption.allCases) { option in
-                            Text("\(option.symbol) \(option.displayName)").tag(option)
-                        }
-                    }
-                    .frame(width: 200)
+                    HotkeyPicker(selection: aiAgentHotkey, reservedBy: sttHotkey)
+                        .frame(width: 220)
                 }
+                Text("The Record Hotkey (\(sttHotkey.displayName)) is greyed out because one hotkey can't drive two modes.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             // Section 4: AI Provider
@@ -933,6 +937,7 @@ func getAudioInputDevices() -> [AudioInputDevice] {
 struct GeneralTab: View {
     @AppStorage("inputDeviceUID") private var inputDeviceUID = "default"
     @AppStorage("selectedHotkey") private var selectedHotkeyRaw = HotkeyOption.leftControlOption.rawValue
+    @AppStorage("selectedAIHotkey") private var selectedAIHotkeyRaw = HotkeyOption.fnOption.rawValue
     @AppStorage("outputTraditionalChinese") private var outputTraditionalChinese = false
     @AppStorage("recognitionLanguage") private var recognitionLanguage = "auto"
     @AppStorage("sttEngine") private var sttEngine = "funasr"
@@ -947,18 +952,18 @@ struct GeneralTab: View {
         )
     }
 
+    private var aiHotkey: HotkeyOption {
+        HotkeyOption(rawValue: selectedAIHotkeyRaw) ?? .fnOption
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             SettingsSection("Hotkey") {
                 SettingRow("Record Hotkey") {
-                    Picker("", selection: selectedHotkey) {
-                        ForEach(HotkeyOption.allCases) { option in
-                            Text("\(option.symbol) \(option.displayName)").tag(option)
-                        }
-                    }
-                    .frame(width: 200)
+                    HotkeyPicker(selection: selectedHotkey, reservedBy: aiHotkey)
+                        .frame(width: 220)
                 }
-                Text("Press to start, press again to stop. Double-press ESC to cancel.")
+                Text("Press to start, press again to stop. Double-press ESC to cancel. The AI Agent Hotkey (\(aiHotkey.displayName)) is greyed out to prevent conflicts.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1185,6 +1190,7 @@ struct ModelStatusRow: View {
 struct PermissionsTab: View {
     @State private var micGranted = false
     @State private var accessibilityGranted = false
+    @State private var screenGranted = false
     @State private var pollTimer: Timer?
 
     var body: some View {
@@ -1224,9 +1230,21 @@ struct PermissionsTab: View {
                     settingsURL: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
                     onRefresh: { refreshPermissions() }
                 )
+
+                Divider()
+
+                PermissionRow(
+                    icon: "rectangle.dashed.badge.record",
+                    iconColor: .blue,
+                    title: "Screen & System Audio Recording",
+                    description: "Allow ZhiYin to capture the active window as context for AI Agent replies",
+                    isGranted: screenGranted,
+                    settingsURL: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+                    onRefresh: { refreshPermissions() }
+                )
             }
 
-            if !micGranted || !accessibilityGranted {
+            if !micGranted || !accessibilityGranted || !screenGranted {
                 SettingsSection("Tips") {
                     Label("Accessibility may require restarting ZhiYin after granting", systemImage: "arrow.clockwise")
                         .font(.caption)
@@ -1246,6 +1264,7 @@ struct PermissionsTab: View {
     private func refreshPermissions() {
         micGranted = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         accessibilityGranted = TextInjector.hasAccessibilityPermission()
+        screenGranted = CGPreflightScreenCaptureAccess()
     }
 
     private func startPolling() {
@@ -1739,5 +1758,53 @@ struct CLIInstallSection: View {
             cliInstalled = true
             installError = ""
         }
+    }
+}
+
+// MARK: - Hotkey Picker (cross-disables the option in use by the other role)
+
+/// Menu-style picker for HotkeyOption. Greys out the option currently used
+/// by the other role (Record vs AI Agent) so the same combo can't drive two
+/// independent state machines — the event tap only delivers the press once,
+/// whichever handler wins and the other goes silent.
+struct HotkeyPicker: View {
+    @Binding var selection: HotkeyOption
+    /// The hotkey used by the sibling role; rendered disabled in the menu.
+    let reservedBy: HotkeyOption
+
+    var body: some View {
+        Menu {
+            ForEach(HotkeyOption.allCases) { option in
+                let isReserved = option != .none && option == reservedBy
+                Button {
+                    if !isReserved { selection = option }
+                } label: {
+                    HStack {
+                        if selection == option {
+                            Image(systemName: "checkmark")
+                        }
+                        Text("\(option.symbol) \(option.displayName)")
+                    }
+                }
+                .disabled(isReserved)
+            }
+        } label: {
+            HStack {
+                Text("\(selection.symbol) \(selection.displayName)")
+                    .lineLimit(1)
+                Spacer()
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+            )
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
     }
 }
