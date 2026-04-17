@@ -10,6 +10,9 @@ __pycache__/
 .claude/
 .serena/
 
+# --- Secrets ---
+.env
+
 # --- Large model files (downloaded at build time) ---
 models/SenseVoiceSmall.mlmodelc
 models/*.model

@@ -29,6 +29,8 @@ ZhiYin is a macOS menu-bar app for lightning-fast voice input. Supports **14 lan
 - **System-wide** — Works in any app that accepts text input
 - **Context aware** — Captures selected text and browser URL for smarter results
 - **Personal dictionary** — Custom term corrections for your domain
+- **AI Agent** *(new in 0.9)* — Hold a hotkey, speak your intent, release — an appropriate reply is drafted from what's on your screen. Email / Instant Message / Assistant agents auto-select based on the frontmost app (Mail, Outlook, Slack, Gmail, WhatsApp, etc.). Works with Ollama, OpenRouter, Google Gemini, or any OpenAI-compatible endpoint.
+- **Quick recall** *(new in 0.9)* — `⇧⌘C` copies the last transcription; a menu action re-runs the STT on the saved audio if the first pass wasn't right.
 - **Free forever** — 50 transcriptions/day free, $12 Pro unlocks unlimited
 
 ## Install

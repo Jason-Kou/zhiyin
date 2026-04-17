@@ -30,6 +30,8 @@
 - **个人词典** — 自定义专业术语纠正
 - **Power Mode** — 按应用自动切换配置
 - **AI 润色** — 通过本地 Ollama LLM 可选文本优化
+- **AI Agent**（0.9 新增）— 按住快捷键说出意图，松开即根据屏幕内容生成回复。内置 Email / Instant Message / Assistant 三种角色，根据前台应用（Mail、Outlook、Slack、Gmail、微信等）自动选择。支持 Ollama、OpenRouter、Google Gemini 及任意 OpenAI 兼容接口。
+- **快速回溯**（0.9 新增）— `⇧⌘C` 复制最近一次转写结果；菜单里可对保存的音频重跑一次 STT，第一次识别不准时用来"补一刀"。
 - **免费永久** — 每天 50 次免费，$12 Pro 解锁无限次
 
 ## 安装

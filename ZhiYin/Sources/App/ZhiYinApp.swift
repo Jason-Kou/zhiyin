@@ -64,7 +64,7 @@ enum StopReason: CustomStringConvertible {
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate {
     var statusItem: NSStatusItem?
     var hotkeyManager: HotkeyManager?
     var audioRecorder: AudioRecorder?
@@ -77,6 +77,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var recordingState: RecordingState = .idle
     private var isServerReady = false
     private var recordingStartTime: Date?
+
+    // MARK: - AI Reply State
+    private var aiReplyScreenshot: CGImage?
+    private var aiSelectedAgent: AIAgent?
+    private var aiReplySetupTask: Task<Void, Never>?
+    private var isAIReplyMode = false
 
     // MARK: - Safety Timers (SAFE-01, SAFE-02)
     private var safetyTimer: DispatchSourceTimer?
@@ -97,6 +103,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusMenuItem: NSMenuItem?
     private var restartMenuItem: NSMenuItem?
     private var recordMenuItem: NSMenuItem?
+    private var copyLastMenuItem: NSMenuItem?
+    private var retryLastMenuItem: NSMenuItem?
     private var blinkTimer: Timer?
     private var blinkState = false
     private var statusMenu: NSMenu?
@@ -146,6 +154,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             onStop: { [weak self] in self?.stopRecordingAndTranscribe() }
         )
         hotkeyManager?.onCancelRecording = { [weak self] in self?.cancelRecording() }
+        hotkeyManager?.onStartAIReply = { [weak self] in self?.startAIReplyRecording() }
+        hotkeyManager?.onStopAIReply = { [weak self] in self?.stopAIReplyAndGenerate() }
 
         // Refresh event tap a few times after launch.
         // macOS doesn't immediately propagate Accessibility permission to running apps,
@@ -166,6 +176,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let newOption = HotkeyOption(rawValue: saved) ?? .rightControl
             if manager.selectedHotkey != newOption {
                 manager.selectedHotkey = newOption
+            }
+            let savedAI = UserDefaults.standard.string(forKey: "selectedAIHotkey") ?? HotkeyOption.none.rawValue
+            let newAIOption = HotkeyOption(rawValue: savedAI) ?? .none
+            if manager.selectedAIHotkey != newAIOption {
+                manager.selectedAIHotkey = newAIOption
             }
         }
 
@@ -581,6 +596,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
+        let retryLast = NSMenuItem(title: "Retry Last Transcription", action: #selector(retryLastTranscription), keyEquivalent: "")
+        retryLast.target = self
+        retryLast.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: nil)
+        retryLastMenuItem = retryLast
+        menu.addItem(retryLast)
+
+        let copyLast = NSMenuItem(title: "Copy Last Transcription", action: #selector(copyLastTranscription), keyEquivalent: "c")
+        copyLast.target = self
+        copyLast.keyEquivalentModifierMask = [.command, .shift]
+        copyLast.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
+        copyLastMenuItem = copyLast
+        menu.addItem(copyLast)
+
         let historyItem = NSMenuItem(title: "History...", action: #selector(openHistory), keyEquivalent: "h")
         historyItem.target = self
         historyItem.isEnabled = true
@@ -618,7 +646,45 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menu.addItem(quitItem)
 
         statusMenu = menu
+        menu.delegate = self
         statusItem?.menu = menu
+    }
+
+    // MARK: - NSMenuDelegate
+
+    func menuWillOpen(_ menu: NSMenu) {
+        // Refresh enablement for "last transcription" actions each time the
+        // menu opens — the underlying history is stored externally.
+        copyLastMenuItem?.isEnabled = LastTranscriptionService.hasAny
+        retryLastMenuItem?.isEnabled = LastTranscriptionService.canRetry && isServerReady
+    }
+
+    // MARK: - Last Transcription Actions
+
+    @MainActor
+    @objc func copyLastTranscription() {
+        if LastTranscriptionService.copyLast() {
+            RecordingOverlayController.shared.showToast(message: "Copied last transcription", isError: false)
+        } else {
+            RecordingOverlayController.shared.showToast(message: "No transcription to copy", isError: true)
+        }
+    }
+
+    @MainActor
+    @objc func retryLastTranscription() {
+        guard let transcriber = transcriber else {
+            RecordingOverlayController.shared.showToast(message: "STT server not ready", isError: true)
+            return
+        }
+        RecordingOverlayController.shared.showToast(message: "Retrying...", isError: false, duration: 30)
+        Task { @MainActor in
+            if let newText = await LastTranscriptionService.retryLast(using: transcriber) {
+                let preview = newText.count > 40 ? String(newText.prefix(37)) + "..." : newText
+                RecordingOverlayController.shared.showToast(message: "Retried: \(preview)", isError: false)
+            } else {
+                RecordingOverlayController.shared.showToast(message: "Retry failed", isError: true)
+            }
+        }
     }
 
     // MARK: - Recording
@@ -672,8 +738,200 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         requestStop(reason: .userRelease)
     }
 
+    // MARK: - AI Reply Flow
+
+    private func startAIReplyRecording() {
+        guard case .idle = recordingState else {
+            print("AI Reply: ignoring start, current state: \(recordingState)")
+            return
+        }
+        guard isServerReady else {
+            updateStatus("Waiting for server...", icon: "hourglass")
+            return
+        }
+        guard ContextualReplyManager.shared.isEnabled else {
+            print("AI Reply is disabled")
+            return
+        }
+
+        print("AI Reply: starting")
+        isAIReplyMode = true
+
+        // Set recording state and show overlay SYNCHRONOUSLY so that stop signals
+        // arriving from key release always find recordingState == .recording.
+        // The screenshot capture happens in background — it just needs to finish
+        // before stopAIReplyAndGenerate sends audio to the LLM.
+        recordingState = .recording
+        recordingStartTime = Date()
+        mediaController?.pauseIfPlaying()
+        updateStatus("AI Reply...", icon: "sparkles")
+        startBlinkTimer()
+        RecordingOverlayController.shared.showAIRecording()
+        audioRecorder?.startRecording()
+        startStreamingTranscription()
+        startSafetyTimer()
+        startMemoryMonitor()
+
+        // Capture screenshot (only if model supports vision) and select agent in background
+        let needsVision = ContextualReplyManager.shared.currentModelSupportsVision
+        aiReplySetupTask = Task { @MainActor in
+            if needsVision {
+                do {
+                    self.aiReplyScreenshot = try await ScreenshotCapture.shared.captureFullScreen()
+                    print("AI Reply: screenshot captured")
+                } catch {
+                    print("AI Reply: screenshot failed: \(error.localizedDescription)")
+                    self.aiReplyScreenshot = nil
+                }
+            } else {
+                print("AI Reply: skipping screenshot (model does not support vision)")
+                self.aiReplyScreenshot = nil
+            }
+            // Select agent via 3-layer routing (bundleId → window title → LLM classification)
+            let agent = await AgentRouter.shared.selectAgent(screenshot: self.aiReplyScreenshot)
+            self.aiSelectedAgent = agent
+            print("AI Reply: selected agent '\(agent.name)'")
+        }
+    }
+
+    private func stopAIReplyAndGenerate() {
+        guard case .recording = recordingState, isAIReplyMode else {
+            print("AI Reply: ignoring stop, state=\(recordingState) aiMode=\(isAIReplyMode)")
+            return
+        }
+        print("AI Reply: stopping, will generate")
+        recordingState = .stopping(reason: .userRelease)
+        performAIReplyStop()
+    }
+
+    private func performAIReplyStop() {
+        cancelSafetyTimer()
+        cancelMemoryMonitor()
+        stopBlinkTimer()
+        stopStreamingTranscription()
+        mediaController?.resumeIfWasPlaying()
+
+        // Check too-short recording
+        if audioRecorder?.wasRecordingTooShort == true {
+            _ = audioRecorder?.stopRecording()
+            audioRecorder?.cleanup()
+            Task { await transcriber?.cancelSession() }
+            updateStatus("Ready", icon: "mic.fill")
+            RecordingOverlayController.shared.dismiss()
+            recordingState = .idle
+            isAIReplyMode = false
+            aiReplyScreenshot = nil
+            aiSelectedAgent = nil
+            aiReplySetupTask = nil
+            return
+        }
+
+        recordingState = .finalizing
+        updateStatus("AI: Transcribing...", icon: "ellipsis.circle")
+        RecordingOverlayController.shared.showAIGenerating()
+
+        let audioURL = audioRecorder?.stopRecording()
+        let remainingSamples = audioRecorder?.drainNewSamples()
+
+        Task {
+            // Send remaining audio
+            if let remainingSamples = remainingSamples {
+                try? await transcriber?.sendChunk(samples: remainingSamples)
+            }
+            await lastChunkTask?.value
+            lastChunkTask = nil
+
+            // Transcribe voice intent (same Final Touch path)
+            var intentText: String?
+            await transcriber?.cancelSession()
+            if let audioURL = audioURL {
+                intentText = try? await transcriber?.transcribe(audioURL: audioURL)
+                print("AI Reply: intent transcribed: \(intentText ?? "")")
+            }
+
+            guard let intent = intentText, !intent.isEmpty else {
+                print("AI Reply: no speech detected, dismissing silently")
+                await MainActor.run {
+                    RecordingOverlayController.shared.dismiss()
+                    self.updateStatus("Ready", icon: "mic.fill")
+                    self.recordingState = .idle
+                    self.isAIReplyMode = false
+                    self.aiReplyScreenshot = nil
+                    self.aiSelectedAgent = nil
+                }
+                audioRecorder?.cleanup()
+                return
+            }
+
+            // Wait for screenshot + agent selection to finish (may still be running if user was very fast)
+            await self.aiReplySetupTask?.value
+
+            // Generate LLM reply
+            await MainActor.run {
+                RecordingOverlayController.shared.showAIGenerating()
+                self.updateStatus("AI: Generating...", icon: "sparkles")
+            }
+
+            let screenshot = self.aiReplyScreenshot  // nil when model doesn't support vision
+            let agent = self.aiSelectedAgent
+            do {
+                let reply = try await ContextualReplyManager.shared.generateReply(
+                    screenshot: screenshot, intent: intent, agent: agent
+                )
+                print("AI Reply: generated reply (\(reply.count) chars) using agent '\(agent?.name ?? "legacy")'")
+
+                // Save user's voice intent to history for debugging
+                let duration = self.recordingStartTime.map { Date().timeIntervalSince($0) } ?? 0
+                await MainActor.run {
+                    HistoryStore.shared.saveAIReply(
+                        intent: intent,
+                        agentName: agent?.name ?? "Assistant",
+                        duration: duration, tempAudioURL: audioURL
+                    )
+                }
+
+                await MainActor.run {
+                    let injected = self.textInjector?.injectText(reply) ?? false
+                    if injected {
+                        self.flashStatus("AI: Done", icon: "checkmark.circle")
+                    } else {
+                        self.flashStatus("AI: No Permission", icon: "exclamationmark.triangle")
+                    }
+                    RecordingOverlayController.shared.dismiss()
+                    self.recordingState = .idle
+                    self.isAIReplyMode = false
+                    self.aiReplyScreenshot = nil
+                    self.aiSelectedAgent = nil
+                }
+            } catch {
+                let errorMsg: String
+                if let aiError = error as? AIReplyError {
+                    errorMsg = aiError.localizedDescription
+                } else {
+                    errorMsg = error.localizedDescription
+                }
+                print("AI Reply: generation failed: \(errorMsg)")
+
+                await MainActor.run {
+                    RecordingOverlayController.shared.showAIError(message: errorMsg)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                        RecordingOverlayController.shared.dismiss()
+                    }
+                    self.flashStatus("AI: Failed", icon: "xmark.circle")
+                    self.recordingState = .idle
+                    self.isAIReplyMode = false
+                    self.aiReplyScreenshot = nil
+                    self.aiSelectedAgent = nil
+                }
+            }
+
+            audioRecorder?.cleanup()
+        }
+    }
+
     /// Single entry point for all stop triggers. Only the first caller
     /// that sees .recording transitions to .stopping; subsequent callers no-op.
+    /// Routes to AI Reply stop path when isAIReplyMode is active.
     private func requestStop(reason: StopReason) {
         guard case .recording = recordingState else {
             print("RecordingState: ignoring stop request (\(reason)), current state: \(recordingState)")
@@ -681,7 +939,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         print("RecordingState: \(recordingState) -> stopping(\(reason))")
         recordingState = .stopping(reason: reason)
-        performStop(reason: reason)
+        // Cancel is the same for both modes — stop everything, don't generate
+        if case .userCancel = reason {
+            performStop(reason: reason)
+            return
+        }
+        if isAIReplyMode {
+            performAIReplyStop()
+        } else {
+            performStop(reason: reason)
+        }
     }
 
     /// Executes the actual stop sequence after state has transitioned to .stopping.
@@ -707,6 +974,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             updateStatus("Ready", icon: "mic.fill")
             RecordingOverlayController.shared.dismiss()
             recordingState = .idle
+            isAIReplyMode = false
+            aiReplyScreenshot = nil
+            aiSelectedAgent = nil
+            aiReplySetupTask?.cancel()
+            aiReplySetupTask = nil
             print("RecordingState: stopping(userCancel) -> idle")
             print("Recording cancelled")
             return
@@ -720,6 +992,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             updateStatus("Ready", icon: "mic.fill")
             RecordingOverlayController.shared.dismiss()
             recordingState = .idle
+            isAIReplyMode = false
+            aiReplyScreenshot = nil
+            aiSelectedAgent = nil
             print("RecordingState: stopping(userRelease) -> idle (too short)")
             print("Recording too short, ignored")
             return
@@ -818,6 +1093,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     }
                     RecordingOverlayController.shared.dismiss()
                     self.recordingState = .idle
+                    self.isAIReplyMode = false
+                    self.aiReplyScreenshot = nil
                     print("RecordingState: finalizing -> idle")
                 }
             } else {
@@ -825,6 +1102,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     flashStatus("\u{2717} Failed", icon: "xmark.circle")
                     RecordingOverlayController.shared.dismiss()
                     self.recordingState = .idle
+                    self.isAIReplyMode = false
+                    self.aiReplyScreenshot = nil
+                    self.aiSelectedAgent = nil
                     print("RecordingState: finalizing -> idle")
                 }
             }

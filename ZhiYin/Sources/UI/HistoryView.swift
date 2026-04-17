@@ -301,6 +301,18 @@ struct HistoryListItem: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
+                    if record.source == "ai_agent" {
+                        HStack(spacing: 3) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 9))
+                            Text(record.aiAgentName ?? "Agent")
+                                .font(.system(size: 10, weight: .medium))
+                        }
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .foregroundStyle(.purple)
+                        .background(.purple.opacity(0.12), in: Capsule())
+                    }
                     Text(record.timestamp, format: .dateTime.month(.abbreviated).day().hour().minute())
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.secondary)
@@ -348,6 +360,15 @@ struct HistoryDetailView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     // Metadata header
                     HStack {
+                        if record.source == "ai_agent" {
+                            HStack(spacing: 4) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 11))
+                                Text("AI Agent — \(record.aiAgentName ?? "Agent")")
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .foregroundStyle(.purple)
+                        }
                         Text(record.timestamp, format: .dateTime.year().month().day().hour().minute().second())
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
@@ -362,7 +383,7 @@ struct HistoryDetailView: View {
                     // Transcription text
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("Transcription")
+                            Text(record.source == "ai_agent" ? "Voice Intent" : "Transcription")
                                 .font(.system(size: 10, weight: .medium))
                                 .foregroundColor(.secondary)
                             Spacer()

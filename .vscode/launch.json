@@ -19,6 +19,26 @@
             "target": "zhiyin",
             "configuration": "release",
             "preLaunchTask": "swift: Build Release zhiyin"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:zhiyin}",
+            "name": "Debug zhiyin-stt",
+            "target": "zhiyin-stt",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug zhiyin-stt"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:zhiyin}",
+            "name": "Release zhiyin-stt",
+            "target": "zhiyin-stt",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release zhiyin-stt"
         }
     ]
 }

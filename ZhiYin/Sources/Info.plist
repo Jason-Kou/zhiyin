@@ -9,9 +9,9 @@
 	<key>CFBundleIdentifier</key>
 	<string>com.zhiyin.app</string>
 	<key>CFBundleVersion</key>
-	<string>4</string>
+	<string>5</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.8.3</string>
+	<string>0.9.0</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleExecutable</key>
@@ -24,6 +24,8 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>ZhiYin needs microphone access to capture your voice for speech-to-text transcription.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>ZhiYin needs Screen Recording access to capture screenshots for AI Reply context. The screenshot is sent to your local LLM server only.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>SUFeedURL</key>

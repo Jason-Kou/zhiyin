@@ -43,7 +43,28 @@ final class HistoryStore {
             }
         }
 
-        let record = TranscriptionRecord(text: text, duration: duration, audioFilePath: savedPath)
+        let record = TranscriptionRecord(text: text, duration: duration, audioFilePath: savedPath, source: "stt")
+        container.mainContext.insert(record)
+        try? container.mainContext.save()
+    }
+
+    /// Save the user's voice intent from AI Agent mode to history for debugging.
+    func saveAIReply(intent: String, agentName: String, duration: TimeInterval, tempAudioURL: URL?) {
+        var savedPath: String?
+        if let src = tempAudioURL, FileManager.default.fileExists(atPath: src.path) {
+            let dest = "\(Self.recordingsDir)/\(UUID().uuidString).wav"
+            do {
+                try FileManager.default.copyItem(atPath: src.path, toPath: dest)
+                savedPath = dest
+            } catch {
+                print("Failed to save audio for AI history: \(error)")
+            }
+        }
+
+        let record = TranscriptionRecord(
+            text: intent, duration: duration, audioFilePath: savedPath,
+            source: "ai_agent", aiAgentName: agentName
+        )
         container.mainContext.insert(record)
         try? container.mainContext.save()
     }
