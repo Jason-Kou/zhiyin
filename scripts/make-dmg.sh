@@ -135,11 +135,11 @@ echo "  Installing dependencies (this takes a few minutes)..."
 FUNASR_MOD="$TMPVENV/lib/python3.12/site-packages/mlx_audio/stt/models/funasr"
 if [ ! -d "$FUNASR_MOD" ]; then
     echo "  Patching: adding funasr model module..."
-    FALLBACK_FUNASR="$HOME/3_coding/sensevoice-coreml/.venv/lib/python3.12/site-packages/mlx_audio/stt/models/funasr"
-    if [ -d "$FALLBACK_FUNASR" ]; then
-        cp -R "$FALLBACK_FUNASR" "$FUNASR_MOD"
+    VENDOR_FUNASR="$PROJECT_DIR/python/vendor/funasr"
+    if [ -d "$VENDOR_FUNASR" ]; then
+        cp -R "$VENDOR_FUNASR" "$FUNASR_MOD"
     else
-        echo "  ERROR: funasr module not found. Run dev build first to install it."
+        echo "  ERROR: funasr module not found at $VENDOR_FUNASR."
         exit 1
     fi
 fi

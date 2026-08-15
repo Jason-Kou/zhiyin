@@ -37,6 +37,14 @@ source "$VENV_DIR/bin/activate"
 echo "  Installing packages..."
 pip install -q fastapi uvicorn soundfile numpy mlx-audio==0.2.10 huggingface-hub opencc-python-reimplemented mlx-whisper==0.4.3
 
+# The mlx-audio 0.2.10 PyPI wheel ships without stt/models/funasr — restore it from python/vendor/.
+FUNASR_DST="$(python3 -c 'import os, mlx_audio; print(os.path.dirname(mlx_audio.__file__))')/stt/models/funasr"
+if [[ ! -f "$FUNASR_DST/funasr.py" ]]; then
+    echo "  Patching missing funasr module from python/vendor/..."
+    mkdir -p "$FUNASR_DST"
+    cp -R "$PROJECT_DIR/python/vendor/funasr/." "$FUNASR_DST/"
+fi
+
 # 3. Download model
 echo "[3/5] Downloading STT model (this may take a while)..."
 python3 -c "
