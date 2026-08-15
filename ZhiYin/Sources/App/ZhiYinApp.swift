@@ -328,9 +328,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     private static let zhiyinHome = NSString(string: "~/.zhiyin").expandingTildeInPath
     private static let venvPath = "\(zhiyinHome)/venv"
-    // Use existing sensevoice venv as fallback for dev builds
-    private static let fallbackVenvPython = NSString(string: "~/3_coding/sensevoice-coreml/.venv/bin/python").expandingTildeInPath
-    private static let pipDeps = "fastapi uvicorn soundfile numpy mlx-audio==0.2.10 huggingface-hub mlx-whisper==0.4.3"
+    // Keep in sync with scripts/install.sh. silero-vad and opencc are imported directly
+    // by stt_server.py and are not pulled in transitively by anything else here.
+    private static let pipDeps = "fastapi uvicorn soundfile numpy mlx-audio==0.2.10 huggingface-hub opencc-python-reimplemented silero-vad mlx-whisper==0.4.3"
 
     /// Bundled Python runtime inside the .app bundle (for release builds)
     private static var bundledPython: String? {
@@ -358,9 +358,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     /// Resolve the Python interpreter to use
     private static var pythonPath: String {
         if let bundled = bundledPython { return bundled }
-        let venvPy = "\(venvPath)/bin/python"
-        if FileManager.default.fileExists(atPath: venvPy) { return venvPy }
-        return fallbackVenvPython
+        return "\(venvPath)/bin/python"
     }
 
     private func startPythonServer() {
@@ -377,7 +375,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         } else if !FileManager.default.fileExists(atPath: Self.pythonPath) {
             // Dev build: set up venv if needed
             updateStatus("Setting up Python env...", icon: "arrow.down.circle")
-            setupVenv { [weak self] success in
+            setupVenv(script: script) { [weak self] success in
                 if success {
                     self?.launchServer(script: script)
                 } else {
@@ -391,7 +389,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
     }
 
-    private func setupVenv(completion: @escaping (Bool) -> Void) {
+    private func setupVenv(script: String, completion: @escaping (Bool) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
             let fm = FileManager.default
             let home = Self.zhiyinHome
@@ -399,6 +397,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             // Create ~/.zhiyin/ if needed
             if !fm.fileExists(atPath: home) {
                 try? fm.createDirectory(atPath: home, withIntermediateDirectories: true)
+            }
+
+            // A dangling symlink at venvPath makes `python3 -m venv` abort with EEXIST
+            // while `ls` reports nothing there. Clear it first.
+            if !fm.fileExists(atPath: Self.venvPath),
+               (try? fm.destinationOfSymbolicLink(atPath: Self.venvPath)) != nil {
+                print("Removing dangling venv symlink at \(Self.venvPath)")
+                try? fm.removeItem(atPath: Self.venvPath)
             }
 
             // Create venv
@@ -446,11 +452,52 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                     return
                 }
                 print("Python dependencies installed successfully")
+                Self.patchFunasrModule(script: script)
                 completion(true)
             } catch {
                 print("Failed to install dependencies: \(error)")
                 completion(false)
             }
+        }
+    }
+
+    /// The mlx-audio 0.2.10 wheel ships without stt/models/funasr, so a freshly created
+    /// venv cannot import the STT engine. Restore it from python/vendor/funasr/, the same
+    /// copy scripts/install.sh and scripts/make-dmg.sh use.
+    private static func patchFunasrModule(script: String) {
+        let fm = FileManager.default
+        let vendor = (script as NSString).deletingLastPathComponent + "/vendor/funasr"
+        guard fm.fileExists(atPath: vendor) else {
+            print("funasr patch: vendored copy not found at \(vendor)")
+            return
+        }
+
+        let locate = Process()
+        locate.executableURL = URL(fileURLWithPath: "\(venvPath)/bin/python")
+        locate.arguments = ["-c", "import os, mlx_audio; print(os.path.dirname(mlx_audio.__file__))"]
+        let pipe = Pipe()
+        locate.standardOutput = pipe
+        guard (try? locate.run()) != nil else {
+            print("funasr patch: could not run venv python")
+            return
+        }
+        let out = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        locate.waitUntilExit()
+        guard locate.terminationStatus == 0, !out.isEmpty else {
+            print("funasr patch: could not locate mlx_audio")
+            return
+        }
+
+        let dst = "\(out)/stt/models/funasr"
+        guard !fm.fileExists(atPath: "\(dst)/funasr.py") else { return }
+        do {
+            try fm.createDirectory(atPath: (dst as NSString).deletingLastPathComponent,
+                                   withIntermediateDirectories: true)
+            try fm.copyItem(atPath: vendor, toPath: dst)
+            print("funasr patch: restored into \(dst)")
+        } catch {
+            print("funasr patch failed: \(error)")
         }
     }
 

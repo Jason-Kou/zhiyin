@@ -30,7 +30,8 @@ set -euo pipefail
 #
 # Prerequisites on build machine:
 #   - uv-managed Python 3.12 at ~/.local/share/uv/python/cpython-3.12.7-*/
-#   - Working dev venv with funasr module at ~/3_coding/sensevoice-coreml/.venv/
+#   - funasr module vendored in-repo at python/vendor/funasr/ (patched into the
+#     release venv below, since the mlx-audio wheel omits it)
 #   - Apple Development certificate for code signing
 # ─────────────────────────────────────────────────────────────────────────────
 
