@@ -39,6 +39,14 @@ ZhiYin is a macOS menu-bar app for lightning-fast voice input. Supports **14 lan
 
 Grab the latest `.dmg` from [Releases](https://github.com/Jason-Kou/zhiyin/releases).
 
+**First launch:** macOS will refuse to open it — the build is signed but not
+notarized, so Gatekeeper does not recognise it. Right-click the app and choose
+**Open**, then confirm. Once is enough. If that does not work:
+
+```bash
+xattr -cr /Applications/ZhiYin.app
+```
+
 ### Build from source
 
 ```bash

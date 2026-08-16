@@ -40,6 +40,13 @@
 
 从 [Releases](https://github.com/Jason-Kou/zhiyin/releases) 下载最新 `.dmg`。
 
+**首次打开**：macOS 会拒绝启动——安装包已签名但未经公证，Gatekeeper 不认识它。
+右键点击 App 选择**打开**，再确认一次即可，只需一次。若仍不行：
+
+```bash
+xattr -cr /Applications/ZhiYin.app
+```
+
 ### 从源码构建
 
 ```bash
