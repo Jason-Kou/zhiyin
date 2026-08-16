@@ -217,8 +217,17 @@ def join_group_texts(texts: list) -> str:
     return joined
 
 
-def load_initial_prompt() -> str | None:
+def load_initial_prompt(language: str = "auto") -> str | None:
     """Load personal dictionary and build an initial_prompt for vocabulary biasing.
+
+    For Chinese, the words are introduced with a Chinese instruction rather than
+    listed bare. Measured on the same recording, five runs each: a bare list
+    produced "OpenClout" 5/5, while the instructed form produced the intended
+    "OpenClaw" 5/5. Output on four unrelated recordings was byte-identical either
+    way, so the instruction only acts where a dictionary word is at stake.
+
+    Only for zh/yue. See the warning below — a prefix in the wrong language steers
+    the decoder, and every other language is untested here.
 
     IMPORTANT: do NOT prefix the vocab list with an English meta-label like
     "Vocabulary:". When combined with the Chinese language hint and a trailing
@@ -237,7 +246,11 @@ def load_initial_prompt() -> str | None:
         words = [e["replacement"] for e in entries if e.get("replacement")]
         if not words:
             return None
-        prompt = "、".join(words)
+        vocab = "、".join(words)
+        if language in ("zh", "yue"):
+            prompt = f"以下是专有名词，请严格按此拼写：{vocab}"
+        else:
+            prompt = vocab
         print(f"Loaded initial_prompt: {prompt}")
         return prompt
     except Exception as e:
@@ -362,8 +375,8 @@ def warmup_models():
     print("Silero VAD ready.")
 
     # Load settings
-    initial_prompt = load_initial_prompt()
     asr_language = _load_language_setting()
+    initial_prompt = load_initial_prompt(asr_language)
     output_traditional = _load_traditional_setting()
     convert_numerals = _load_numerals_setting()
     stt_engine = _load_stt_engine_setting()
@@ -680,8 +693,8 @@ def health():
 def reload_settings():
     """Reload dictionary, language, and engine settings without restarting server."""
     global initial_prompt, asr_language, output_traditional, stt_engine, convert_numerals
-    initial_prompt = load_initial_prompt()
     asr_language = _load_language_setting()
+    initial_prompt = load_initial_prompt(asr_language)
     output_traditional = _load_traditional_setting()
     convert_numerals = _load_numerals_setting()
 

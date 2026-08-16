@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.3] - 2026-08-16
+
+### Changed
+- **The personal dictionary now actually biases recognition.** Its words were being handed to the model as a bare list, which barely registered. Measured on one recording, five runs each, varying only the prompt: the bare list produced the wrong spelling 5 out of 5 times, and introducing the same words with a short Chinese instruction produced the intended spelling 5 out of 5. Output on four unrelated recordings was byte-identical either way, so this only acts where a dictionary word is at stake.
+
+  Applies to Chinese and Cantonese. Other languages keep the previous behaviour — an instruction in the wrong language steers the decoder, and none of them were measured.
+
+  This does not replace the dictionary's find-and-replace step. Casing can still come back wrong, and a hint will not make the model write Chinese speech as a Latin brand name. What changes is that the model's output is now predictable, so one entry covers a word instead of one entry per misspelling you happen to run into.
+
 ## [1.0.2] - 2026-08-16
 
 ### Added
