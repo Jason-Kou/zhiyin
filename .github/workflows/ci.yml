@@ -8,10 +8,9 @@ on:
 
 # What this does NOT cover: transcription quality. The STT harness
 # (python/test_streaming.py) needs MLX plus a ~1.5GB model download and real
-# audio, so it stays a manual step — see CONTRIBUTING.md. Its unit tests are
-# reachable only by importing stt_server, which imports mlx_audio at module
-# level; splitting the hallucination filter into its own module would let them
-# run here without the model.
+# audio, so it stays a manual step — see CONTRIBUTING.md. The hallucination
+# filter is the exception: it lives in python/hallucination.py with no model
+# imports, so its unit tests run here on every push.
 jobs:
   lint:
     name: Lint (cheap checks)
@@ -25,6 +24,11 @@ jobs:
 
       - name: Python syntax
         run: python -m compileall -q python/
+
+      # The only ASR logic testable without MLX and the model. These functions
+      # decide what gets discarded before text reaches the user's cursor.
+      - name: Hallucination filter unit tests
+        run: python python/test_hallucination.py
 
       - name: Shell script syntax
         run: |

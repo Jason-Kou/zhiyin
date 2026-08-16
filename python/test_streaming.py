@@ -98,55 +98,20 @@ def test_streaming(wav_path):
 
 
 def test_hallucination_detection():
-    """Test 3: Unit tests for hallucination detection functions."""
+    """Test 3: Hallucination filter unit tests.
+
+    The cases live in test_hallucination.py, which imports only the filter module
+    and so runs without MLX or the model — that is what lets CI execute them.
+    Delegating keeps a single copy.
+    """
     print()
     print("=" * 60)
     print("TEST 3: Hallucination detection")
     print("=" * 60)
 
     sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
-    import importlib
-    import stt_server
-    importlib.reload(stt_server)
-    from stt_server import _has_repetition, _is_known_hallucination
-
-    repetition_cases = [
-        ("thank you thank you thank you", True),
-        ("谢谢谢谢谢谢", True),
-        ("好的好的好的", True),
-        ("ha ha ha ha ha ha", True),
-        ("the the the quick brown fox", True),
-        ("subscribe subscribe subscribe", True),
-        ("I like this", False),
-        ("It's really good. I like this.", False),
-        ("好，现在我把繁体的功能打开了", False),
-        ("Hello, how are you today?", False),
-    ]
-
-    known_cases = [
-        ("谢谢观看", True),
-        ("Thank you for watching", True),
-        ("subscribe", True),
-        ("hello world", False),
-        ("I like this product", False),
-    ]
-
-    all_pass = True
-    for text, expected in repetition_cases:
-        result = _has_repetition(text)
-        ok = result == expected
-        if not ok:
-            all_pass = False
-        print(f"  {'✓' if ok else '✗'} repetition('{text}') = {result}")
-
-    for text, expected in known_cases:
-        result = _is_known_hallucination(text)
-        ok = result == expected
-        if not ok:
-            all_pass = False
-        print(f"  {'✓' if ok else '✗'} known('{text}') = {result}")
-
-    return all_pass
+    import test_hallucination
+    return test_hallucination.main() == 0
 
 
 def compare_results(full_text, streaming_text):
