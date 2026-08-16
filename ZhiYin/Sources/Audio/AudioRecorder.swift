@@ -56,6 +56,25 @@ class AudioRecorder {
         NSSound.beep()  // System alert sound, clearly distinct from 1113/1114 tones
     }
 
+    /// True while every sample captured so far has been exactly zero.
+    ///
+    /// This is the signature of a muted or dead input device, and it is worth
+    /// distinguishing from "quiet": a real room always has a noise floor, so a
+    /// softly-speaking user still produces non-zero samples. Testing for literal
+    /// silence rather than a low RMS means the warning cannot fire on someone who
+    /// simply talks quietly, or in the moment before they start speaking.
+    ///
+    /// Without this the failure is invisible — the recording uploads, the server
+    /// returns an empty string, nothing is pasted, and nothing explains why.
+    var capturedOnlySilence: Bool {
+        samplesLock.lock()
+        defer { samplesLock.unlock() }
+        return capturedSampleCount > 0 && capturedPeak == 0
+    }
+
+    private var capturedPeak: Float = 0
+    private var capturedSampleCount: Int = 0
+
     /// Whether the last recording was too short to be useful
     var wasRecordingTooShort: Bool {
         guard let start = recordingStartTime else { return true }
@@ -95,6 +114,8 @@ class AudioRecorder {
         samplesLock.lock()
         accumulatedSamples.removeAll()
         chunkSentIndex = 0
+        capturedPeak = 0
+        capturedSampleCount = 0
         samplesLock.unlock()
 
         // Stop any previous recording
@@ -446,6 +467,8 @@ class AudioRecorder {
                 let scaled = max(-32768.0, min(32767.0, sample * 32767.0))
                 outputBuf[i] = Int16(scaled)
                 accumulatedSamples.append(sample)
+                capturedPeak = max(capturedPeak, abs(sample))
+                capturedSampleCount += 1
             }
         } else {
             // Sample rate conversion with linear interpolation
@@ -465,6 +488,8 @@ class AudioRecorder {
                 let scaled = max(-32768.0, min(32767.0, sample * 32767.0))
                 outputBuf[i] = Int16(scaled)
                 accumulatedSamples.append(sample)
+                capturedPeak = max(capturedPeak, abs(sample))
+                capturedSampleCount += 1
             }
         }
 

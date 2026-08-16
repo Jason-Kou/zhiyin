@@ -1159,9 +1159,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                     print("RecordingState: finalizing -> idle")
                 }
             } else {
+                // A muted input device is indistinguishable from a failed
+                // transcription here — both end with empty text — so say which it
+                // was. Otherwise the app looks broken and the microphone's mute
+                // switch is the last thing anyone thinks to check.
+                let wasSilent = self.audioRecorder?.capturedOnlySilence ?? false
                 await MainActor.run {
-                    flashStatus("\u{2717} Failed", icon: "xmark.circle")
-                    RecordingOverlayController.shared.dismiss()
+                    if wasSilent {
+                        print("AudioRecorder: captured pure silence — input device is muted or dead")
+                        flashStatus("\u{2717} No sound from mic", icon: "mic.slash")
+                        RecordingOverlayController.shared.showToast(
+                            message: "No sound from the microphone — is it muted?",
+                            isError: true,
+                            duration: 3.0
+                        )
+                    } else {
+                        flashStatus("\u{2717} Failed", icon: "xmark.circle")
+                        RecordingOverlayController.shared.dismiss()
+                    }
                     self.recordingState = .idle
                     self.isAIReplyMode = false
                     self.aiReplyScreenshot = nil
