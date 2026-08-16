@@ -32,6 +32,7 @@ jobs:
 
       - name: Issue form YAML is parseable
         run: |
+          pip install --quiet pyyaml
           python -c "
           import glob, yaml, sys
           for f in glob.glob('.github/**/*.yml', recursive=True):
