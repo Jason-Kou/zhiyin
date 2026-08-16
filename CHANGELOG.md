@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.1] - 2026-08-15
+
+### Fixed
+- **Crash on first recording on a fresh install.** ZhiYin never asked for microphone access — nothing in the app called `requestAccess`, and AUHAL does not raise the system prompt the way AVFoundation does, so on a new Mac the input device simply could not be opened. The failure then went unchecked: the device format query's status was ignored, `mSampleRate` stayed at zero, and computing the resample ratio divided by it. `UInt32` of the resulting infinity is a Swift runtime trap, so the app died with `EXC_BREAKPOINT` the moment the hotkey was pressed.
+
+  ZhiYin now requests microphone access before recording, and an input device that cannot report a usable format produces an error in the log instead of taking the app down.
+
+Anyone who installed 1.0.0 on a machine that had never run ZhiYin before would have hit this on their very first hotkey press.
+
 ## [1.0.0] - 2026-08-15
 
 **ZhiYin is now free and unlimited.**

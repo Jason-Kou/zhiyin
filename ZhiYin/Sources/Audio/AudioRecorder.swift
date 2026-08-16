@@ -1,5 +1,6 @@
 import AppKit
 import AudioToolbox
+import AVFoundation
 import CoreAudio
 import Foundation
 
@@ -103,11 +104,34 @@ class AudioRecorder {
         // when Bluetooth devices (AirPods) are slow to respond
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
-            do {
-                try self.setupAndStart()
-            } catch {
-                print("AudioRecorder: Failed to start: \(error)")
+            self.withMicrophoneAccess { granted in
+                guard granted else {
+                    print("AudioRecorder: Microphone access denied — cannot record")
+                    return
+                }
+                do {
+                    try self.setupAndStart()
+                } catch {
+                    print("AudioRecorder: Failed to start: \(error)")
+                }
             }
+        }
+    }
+
+    /// Nothing in the app ever asked for microphone access, so on a fresh install
+    /// CoreAudio simply failed to open the device and recording produced nothing.
+    /// AUHAL does not raise the system prompt on its own the way AVFoundation does.
+    private func withMicrophoneAccess(_ body: @escaping (Bool) -> Void) {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            body(true)
+        case .notDetermined:
+            // Prompts once; the callback lands on an arbitrary queue.
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                body(granted)
+            }
+        default:
+            body(false)
         }
     }
 
@@ -178,10 +202,25 @@ class AudioRecorder {
         }
 
         // 4. Get device native format
+        //
+        // This query fails whenever the input device cannot actually be opened —
+        // microphone permission not granted, device unplugged, or claimed
+        // exclusively by another process. deviceFormat then keeps its zero value,
+        // and step 7 divides by mSampleRate. Dividing by zero yields infinity,
+        // and UInt32(infinity) is a Swift runtime trap, so an unusable microphone
+        // used to crash the app instead of surfacing an error.
         var formatSize = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
-        AudioUnitGetProperty(au, kAudioUnitProperty_StreamFormat,
-                             kAudioUnitScope_Input, 1,
-                             &deviceFormat, &formatSize)
+        let formatStatus = AudioUnitGetProperty(au, kAudioUnitProperty_StreamFormat,
+                                                kAudioUnitScope_Input, 1,
+                                                &deviceFormat, &formatSize)
+        guard formatStatus == noErr else {
+            AudioComponentInstanceDispose(au)
+            throw RecorderError.setupFailed("Could not read input format (status \(formatStatus)) — check microphone permission")
+        }
+        guard deviceFormat.mSampleRate > 0, deviceFormat.mChannelsPerFrame > 0 else {
+            AudioComponentInstanceDispose(au)
+            throw RecorderError.setupFailed("Input device reported an unusable format (\(deviceFormat.mSampleRate)Hz, \(deviceFormat.mChannelsPerFrame)ch)")
+        }
 
         print("AudioRecorder: Device format: \(deviceFormat.mSampleRate)Hz, \(deviceFormat.mChannelsPerFrame)ch")
 
