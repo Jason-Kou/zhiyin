@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.5] - 2026-08-16
+
+### Added
+- **Check for Updates is back** — in the menu bar and in Settings → About. The only update button used to live in the License tab, which the free version hides, so 1.0.4 shipped with no manual check at all. Checking by hand always shows the verdict, even for a version previously dismissed with "Later".
+- **The History window now shows what you have accumulated** — "N recordings · X MB" in the footer. Previously the only tally was buried in Settings, so the window you delete from never told you what was there.
+- **Delete All** in Settings → History, with a confirmation stating exactly how many recordings and megabytes are about to go.
+
+### Fixed
+- **Screenshots were silently dropped for OpenRouter's Gemma models.** The vision check knew the spelling "gemma4" but OpenRouter writes "gemma-4" — so the model received no image and would literally reply asking for a screenshot. Model-name matching now ignores separators entirely; this class of mismatch cannot recur for any provider's spelling.
+- The default OpenRouter model is now `google/gemini-3.7-flash`. The previous free-tier default could sit in OpenRouter's queue indefinitely — no reply, no error, no timeout. A request that never returns is worse than one that costs a tenth of a cent; the Built-in provider remains the zero-cost option.
+
 ## [1.0.4] - 2026-08-16
 
 ### Added

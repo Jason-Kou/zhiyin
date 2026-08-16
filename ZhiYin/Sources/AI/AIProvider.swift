@@ -55,7 +55,10 @@ enum AIProviderType: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .builtin: return "mlx-community/Qwen3-VL-8B-Instruct-4bit"
         case .ollama: return "gemma4:e4b"
-        case .openRouter: return "google/gemma-4-26b-a4b-it:free"
+        // Paid but dependable. The former default, gemma-4 :free, sat in
+        // OpenRouter's free-tier queue indefinitely — a request that never
+        // returns is worse than one that costs a tenth of a cent.
+        case .openRouter: return "google/gemini-3.7-flash"
         case .gemini: return "gemini-2.5-flash-lite"
         case .localCLI: return ""
         case .custom: return "gemma4-e4b"
@@ -140,7 +143,15 @@ enum AIProviderType: String, Codable, CaseIterable, Identifiable {
         // Check keywords
         let lower = model.lowercased()
         if hasVLMarker(lower) { return true }
-        return visionKeywords.contains { lower.contains($0) }
+        // Separator-insensitive: providers spell the same family three ways —
+        // Ollama says "gemma4:e4b", OpenRouter "google/gemma-4-31b-it:free".
+        // A literal list can only ever match the spellings someone remembered
+        // to add; this is the third naming-mismatch bug in this function.
+        let separators = Set("-_. :/")
+        let normalized = String(lower.filter { !separators.contains($0) })
+        return visionKeywords.contains { kw in
+            normalized.contains(String(kw.filter { !separators.contains($0) }))
+        }
     }
 }
 

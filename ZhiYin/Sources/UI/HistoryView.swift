@@ -177,6 +177,14 @@ struct TranscriptionHistoryView: View {
                 Text("\(selectedRecords.count) selected")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.secondary)
+            } else {
+                // Storage was invisible from here — the only tally lived in
+                // Settings → History, so the window you delete from never told
+                // you what you had.
+                let stats = HistoryStore.storageStats()
+                Text("\(stats.count) recordings \u{00B7} \(String(format: "%.1f", Double(stats.bytes) / 1_000_000)) MB")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
             }
         }
         .padding(.horizontal, 16)

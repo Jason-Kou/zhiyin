@@ -695,6 +695,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         settingsItem.image = NSImage(systemSymbolName: "gear", accessibilityDescription: nil)
         menu.addItem(settingsItem)
 
+        let checkUpdatesItem = NSMenuItem(title: "Check for Updates...", action: #selector(checkForUpdatesManually), keyEquivalent: "")
+        checkUpdatesItem.target = self
+        checkUpdatesItem.isEnabled = true
+        checkUpdatesItem.image = NSImage(systemSymbolName: "arrow.down.circle", accessibilityDescription: nil)
+        menu.addItem(checkUpdatesItem)
+
         let permissionsItem = NSMenuItem(title: "Accessibility Permissions...", action: #selector(openAccessibilitySettings), keyEquivalent: "")
         permissionsItem.target = self
         permissionsItem.isEnabled = true
@@ -1657,6 +1663,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             }
         }
         // "Later" — do nothing extra; dismissed key already set above
+    }
+
+    @objc func checkForUpdatesManually() {
+        updateStatus("Checking for updates...", icon: "arrow.triangle.2.circlepath")
+        Task { @MainActor in
+            await UpdateChecker.shared.check()
+            if UpdateChecker.shared.hasUpdate {
+                addUpdateMenuItem()
+                // An explicit check means the user wants the verdict now, even for
+                // a version they dismissed at startup — clear the guard first.
+                UserDefaults.standard.removeObject(forKey: "updateAlertDismissedVersion")
+                showUpdateAlertIfNeeded()
+            } else {
+                flashStatus("Up to date (v\(UpdateChecker.currentVersion))", icon: "checkmark.circle")
+            }
+        }
     }
 
     @objc func openUpdatePage() {

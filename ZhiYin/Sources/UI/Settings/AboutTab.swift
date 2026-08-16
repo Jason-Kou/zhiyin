@@ -4,6 +4,8 @@ import SwiftUI
 
 struct AboutTab: View {
     @StateObject private var updater = UpdateChecker.shared
+    @State private var isCheckingUpdate = false
+    @State private var updateCheckResult: String? = nil
 
     private var appIcon: NSImage? {
         if let url = Bundle.main.url(forResource: "icon-1024", withExtension: "png"),
@@ -46,6 +48,31 @@ struct AboutTab: View {
                 }
                 .font(.callout.bold())
                 .foregroundStyle(.blue)
+            } else {
+                // The manual check used to live only in the License tab; hiding
+                // that tab for the free version removed the app's only update
+                // button, leaving startup polling as the sole path.
+                Button(isCheckingUpdate ? "Checking..." : "Check for Updates") {
+                    Task {
+                        isCheckingUpdate = true
+                        updateCheckResult = nil
+                        await UpdateChecker.shared.check()
+                        isCheckingUpdate = false
+                        if !updater.hasUpdate {
+                            updateCheckResult = "You're up to date"
+                            try? await Task.sleep(nanoseconds: 5_000_000_000)
+                            updateCheckResult = nil
+                        }
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(isCheckingUpdate)
+                if let result = updateCheckResult {
+                    Text(result)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             HStack(spacing: 20) {

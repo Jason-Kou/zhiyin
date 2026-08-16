@@ -51,6 +51,24 @@ struct HistorySettingsTab: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
+                    Button(role: .destructive) {
+                        let stats = HistoryStore.storageStats()
+                        let alert = NSAlert()
+                        alert.messageText = "Delete all history?"
+                        alert.informativeText = "This permanently removes \(stats.count) recordings (\(String(format: "%.1f", Double(stats.bytes) / 1_000_000)) MB) and every transcription. This cannot be undone."
+                        alert.alertStyle = .warning
+                        alert.addButton(withTitle: "Delete All")
+                        alert.addButton(withTitle: "Cancel")
+                        if alert.runModal() == .alertFirstButtonReturn {
+                            HistoryStore.shared.deleteAll()
+                            refreshStats()
+                        }
+                    } label: {
+                        Text("Delete All\u{2026}")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(recordingCount == 0)
                     Button("Show in Finder") {
                         let path = HistoryStore.recordingsDir
                         NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
@@ -71,23 +89,8 @@ struct HistorySettingsTab: View {
     }
 
     private func refreshStats() {
-        let dir = HistoryStore.recordingsDir
-        let fm = FileManager.default
-        guard let files = try? fm.contentsOfDirectory(atPath: dir) else {
-            recordingCount = 0
-            storageSize = "0 MB"
-            return
-        }
-        let wavFiles = files.filter { $0.hasSuffix(".wav") }
-        recordingCount = wavFiles.count
-        var totalBytes: UInt64 = 0
-        for file in wavFiles {
-            if let attrs = try? fm.attributesOfItem(atPath: "\(dir)/\(file)"),
-               let size = attrs[.size] as? UInt64 {
-                totalBytes += size
-            }
-        }
-        let mb = Double(totalBytes) / 1_000_000
-        storageSize = String(format: "%.1f MB on disk", mb)
+        let stats = HistoryStore.storageStats()
+        recordingCount = stats.count
+        storageSize = String(format: "%.1f MB on disk", Double(stats.bytes) / 1_000_000)
     }
 }

@@ -70,6 +70,36 @@ final class HistoryStore {
     }
 
     /// Delete a record and its audio file from disk.
+    /// Total recordings on disk and their size. The counts shown in Settings,
+    /// the History window, and the delete-all confirmation all come from here,
+    /// so they can never disagree.
+    static func storageStats() -> (count: Int, bytes: UInt64) {
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(atPath: recordingsDir) else { return (0, 0) }
+        var count = 0
+        var bytes: UInt64 = 0
+        for f in files where f.hasSuffix(".wav") {
+            count += 1
+            if let attrs = try? fm.attributesOfItem(atPath: "\(recordingsDir)/\(f)"),
+               let size = attrs[.size] as? UInt64 {
+                bytes += size
+            }
+        }
+        return (count, bytes)
+    }
+
+    /// Remove every record and every audio file.
+    func deleteAll() {
+        try? container.mainContext.delete(model: TranscriptionRecord.self)
+        try? container.mainContext.save()
+        let fm = FileManager.default
+        if let files = try? fm.contentsOfDirectory(atPath: Self.recordingsDir) {
+            for f in files where f.hasSuffix(".wav") {
+                try? fm.removeItem(atPath: "\(Self.recordingsDir)/\(f)")
+            }
+        }
+    }
+
     func delete(_ record: TranscriptionRecord) {
         if let path = record.audioFilePath {
             try? FileManager.default.removeItem(atPath: path)
