@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.0.4] - 2026-08-16
+
+### Added
+- **Built-in AI provider.** The AI Agent now works with zero setup: pick "Built-in (local)" and a vision-language model (Qwen3-VL 8B) downloads once and runs inside ZhiYin's own server — no Ollama, no endpoint, no API key, nothing leaves the machine. Every other provider required standing up a server or holding an account first.
+- **Version numbers come out as digits.** Dictating "Qwen三" or "iPhone十" now produces "Qwen3" and "iPhone10". The rule is structural — any Chinese numeral glued to a Latin word converts — so new product names need no configuration. Measure phrases like "English三个月" are left alone. Part of the Arabic-numerals option in Settings → General.
+- **Personal dictionary entries can be edited** — pencil button or double-click. Deleting offers Undo, and adding a spoken form that already exists updates the entry instead of silently creating a dead duplicate.
+- The default model is marked with "★ default" in the model pickers, so there is a way back after experimenting.
+
+### Fixed
+- **A muted microphone now says so.** Recording with a hardware-muted mic used to end in a silent "Failed" — now the overlay says no sound arrived and suggests checking the mute switch. Detection is by literal digital silence, so quiet speech can never trigger it.
+- **Pressing the AI hotkey while AI Reply is disabled now tells you**, instead of doing nothing in a way that reads as a broken hotkey.
+- **Vision detection was wrong in both directions.** Qwen3.5 was treated as vision-capable — it is a text model, and sending it a screenshot made it return empty replies after a long wait. Qwen's actual vision line (`-VL-`) was not recognized, so screenshots were silently dropped for models that could use them.
+- Provider errors now surface the provider's own message — "model 'x' not found" instead of "HTTP 404" — and a model that is merely slow is reported as timed out rather than "server unreachable".
+- Screenshots sent to vision models are capped at 1280px (was up to 1920px): over half the pixels gone, visibly faster local replies, and on-screen text stays legible.
+- The recording overlay no longer shows a thin dark outline (a clipped shadow).
+
 ## [1.0.3] - 2026-08-16
 
 ### Changed
