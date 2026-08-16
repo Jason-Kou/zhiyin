@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.0.0] - 2026-08-15
+
+**ZhiYin is now free and unlimited.**
+
+### Changed
+- **No usage limit, no paid tier.** The 50 transcriptions/day cap and the $12 Pro upgrade are switched off. Nothing to buy, no account, no activation.
+- Past the old daily cap, transcriptions were pasted with `[Upgrade to Pro]` interleaved between every character — and the only place the remaining count was visible was a Settings tab you had to go looking for. That path is gone.
+- The License tab is hidden from Settings, since there is nothing to activate.
+
+### Added
+- **CONTRIBUTING.md** — dev setup, how the Swift and Python halves connect, the streaming test harness, and the constraints worth knowing before changing them (MLX is not thread-safe, model parameters are tuned, the vendored funasr module, the duplicated dependency list).
+- **SECURITY.md** — private disclosure route, plus a per-permission account of what microphone, Accessibility, and Screen Recording access are actually used for. The AI Agent is the one feature that can send data off-device; that is now stated plainly.
+- **Continuous integration** — Swift build and lint on every push, including guards for two failure modes this repo has actually hit: the two copies of the Python dependency list drifting apart, and the vendored funasr module going missing.
+- **Unit tests for the hallucination filter**, now running in CI. Coverage went from 15 assertions to 34; `strip_trailing_hallucinations` previously had none, despite deciding what gets deleted off the end of a transcription.
+- Issue and pull request templates.
+
+### Fixed
+- **Both READMEs told users to hold `Option+Space`.** That combination does not exist — `HotkeyManager` has no space-based option at all, and the default is Left Control + Option. Anyone following the README got no response and no way to tell the app was working correctly.
+- **Dev builds could not bootstrap a Python environment.** The interpreter fallback pointed at a sibling project that no longer exists, the dependency list omitted `silero-vad` and `opencc` (both imported directly by the server, neither pulled in transitively), and a dangling symlink at `~/.zhiyin/venv` made `python3 -m venv` fail with a misleading `EEXIST`.
+- The `mlx-audio` 0.2.10 wheel ships without its `funasr` module. A patched copy is now vendored in-repo at `python/vendor/funasr/` and restored automatically by `install.sh`, `make-dmg.sh`, and the app's own venv bootstrap — previously it survived only inside build artifacts. `make-dmg.sh`'s fallback pointed at a deleted project, so DMG packaging would have failed outright.
+
+### Internal
+- `SettingsView.swift` split from 1,809 lines into 11 per-tab files.
+- Hallucination filter extracted to `python/hallucination.py`, which imports no model code — that is what lets its tests run in CI without MLX or a 1.5GB model download.
+- The paid tier is switched off via two flags rather than deleted: `UsageTracker.monetizationEnabled` and `MONETIZATION_ENABLED` in `stt_server.py`.
+
 ## [0.9.1] - 2026-04-17
 
 ### Added
