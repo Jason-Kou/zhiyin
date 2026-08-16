@@ -126,6 +126,15 @@ zhiyin/
 See [docs/vad-streaming-architecture.md](docs/vad-streaming-architecture.md) for how
 VAD-based streaming transcription works.
 
+## Contributing
+
+Issues and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for
+setup, the STT test harness, and the things worth knowing before changing them.
+Release notes live in [CHANGELOG.md](CHANGELOG.md).
+
+To report a security issue, see [SECURITY.md](SECURITY.md) — it also documents
+exactly what each permission ZhiYin requests is used for.
+
 ## License
 
 GPL-3.0 — see [LICENSE](LICENSE).

@@ -124,6 +124,14 @@ zhiyin/
 └── assets/             # 应用图标
 ```
 
+## 参与贡献
+
+欢迎提 issue 和 PR —— 环境搭建、STT 测试脚本、以及动手前需要知道的坑都写在
+[CONTRIBUTING.md](CONTRIBUTING.md)。版本更新记录见 [CHANGELOG.md](CHANGELOG.md)。
+
+安全问题请走 [SECURITY.md](SECURITY.md)，那里也逐项说明了知音申请的每个系统权限
+具体用在哪里。
+
 ## 许可证
 
 GPL-3.0 — 详见 [LICENSE](LICENSE)。

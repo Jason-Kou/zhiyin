@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest something ZhiYin should do
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: >
+        Describe the situation you are in, not the feature you have in mind. The
+        underlying problem often has a simpler answer than the proposed solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like to happen
+    validations:
+      required: false
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: How you handle it today
+      description: Existing workaround, or another tool that does this well.
+    validations:
+      required: false

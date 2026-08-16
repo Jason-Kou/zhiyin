@@ -23,7 +23,6 @@ models/*.model
 # --- Internal dev files (kept on disk, never committed) ---
 .planning/
 CLAUDE.md
-CHANGELOG.md
 DEMO_SCRIPT.md
 TUNING_REFERENCE.md
 TODO.md

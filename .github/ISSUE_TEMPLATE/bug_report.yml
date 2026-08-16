@@ -1,0 +1,85 @@
+name: Bug report
+description: Something does not work the way it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Most diagnoses turn on the console output, so please do not skip that field.
+        You get it by running `./scripts/run-dev.sh` from a clone, or by launching the
+        installed app from Terminal, then reproducing the problem.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+      placeholder: |
+        1. Held the record hotkey and said "..."
+        2. Released
+        3. Expected text at the cursor; nothing was pasted
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: ZhiYin version
+      description: Menu bar → Settings → About, or the DMG filename.
+      placeholder: "0.9.1"
+    validations:
+      required: true
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "14.6 / 15.2 / 26.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: chip
+    attributes:
+      label: Chip
+      options:
+        - M1
+        - M2
+        - M3
+        - M4
+        - M5
+        - Intel (unsupported — ZhiYin requires Apple Silicon)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it
+      options:
+        - DMG from Releases
+        - Built from source
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console output
+      description: >
+        Output from `./scripts/run-dev.sh` covering the moment the problem happens.
+        Include the Python server lines — they are prefixed `[STT Server]`.
+        Redact anything private; transcribed text appears in these logs.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: area
+    attributes:
+      label: Anything else
+      description: >
+        Which language you were speaking, which hotkey is configured, which STT
+        engine, whether the AI Agent was involved, and whether it is reproducible.
+    validations:
+      required: false
