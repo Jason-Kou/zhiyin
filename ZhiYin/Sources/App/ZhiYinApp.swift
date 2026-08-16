@@ -871,7 +871,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             return
         }
         guard ContextualReplyManager.shared.isEnabled else {
+            // Pressing the hotkey and getting nothing at all — no indicator, no
+            // overlay, no sound — is indistinguishable from a broken hotkey, and
+            // that is exactly how it gets reported. Say which it is.
             print("AI Reply is disabled")
+            flashStatus("AI Reply is off", icon: "sparkles.slash")
+            RecordingOverlayController.shared.showToast(
+                message: "AI Reply is off — enable it in Settings \u{2192} AI Agent",
+                isError: true,
+                duration: 3.0
+            )
             return
         }
         // Screen Recording permission gate. Only relevant when the selected
