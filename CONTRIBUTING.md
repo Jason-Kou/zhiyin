@@ -29,28 +29,21 @@ To stop a stuck instance:
 pkill -f zhiyin; lsof -ti:17760 | xargs kill
 ```
 
-### Building without the daily limit
+### Usage limits
 
-Release builds cap free use at 50 transcriptions per day; past that, output is
-deliberately interleaved with upgrade notices rather than silently truncated, so
-it is obvious what happened. That will get in the way while you are developing.
+There are none. ZhiYin is free and unlimited.
 
-Uncomment the flag in `Package.swift`:
+The paid tier — 50 transcriptions/day free, $12 for unlimited — is switched off
+rather than deleted, in case it comes back. Two flags control it, and both must
+agree:
 
-```swift
-swiftSettings: [
-    .unsafeFlags(["-parse-as-library"]),
-    .define("DISABLE_USAGE_LIMIT"),   // ← uncomment
-]
-```
+- `UsageTracker.monetizationEnabled` (Swift)
+- `MONETIZATION_ENABLED` (`python/stt_server.py`)
 
-`UsageTracker` compiles the counter out entirely under this flag.
-
-To be unambiguous about it: ZhiYin is GPL-3.0, and building yourself without the
-limit is a thing you are allowed to do. The paid licence exists for people who
-would rather download a signed DMG than maintain a toolchain, and it is what funds
-the work. Please do not redistribute unlimited builds as if they were the official
-release — that is a licence and trademark question, not a technical one.
+While they are `false`, the counter never increments, `/usage` reports unlimited,
+the License tab is hidden, and the over-limit path is unreachable. The older
+`DISABLE_USAGE_LIMIT` compile flag in `Package.swift` still exists but is now
+redundant.
 
 ### How the two halves fit together
 

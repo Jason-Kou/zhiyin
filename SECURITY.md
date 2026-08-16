@@ -43,6 +43,5 @@ In scope: privilege escalation, unintended network transmission of audio or scre
 contents, key or token disclosure, and code execution via crafted model or config
 files.
 
-Out of scope: the daily free-transcription limit. ZhiYin is GPL-3.0 and the limit is
-a compile-time flag — removing it in your own build is a license question, not a
-vulnerability, and does not need to be reported.
+Out of scope: usage limits and licence enforcement. ZhiYin is free and unlimited —
+there is nothing to bypass, so there is nothing to report here.

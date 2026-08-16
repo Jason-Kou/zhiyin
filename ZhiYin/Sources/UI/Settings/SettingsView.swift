@@ -13,6 +13,12 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Tabs actually shown in the sidebar. The License tab is hidden while
+    /// UsageTracker.monetizationEnabled is false — there is nothing to buy.
+    static var visibleCases: [SettingsTab] {
+        allCases.filter { $0 != .license || UsageTracker.monetizationEnabled }
+    }
+
     var icon: String {
         switch self {
         case .general: return "gear"
@@ -58,7 +64,7 @@ struct SettingsView: View {
 
     private var sidebar: some View {
         VStack(spacing: 0) {
-            ForEach(SettingsTab.allCases) { tab in
+            ForEach(SettingsTab.visibleCases) { tab in
                 sidebarButton(for: tab)
             }
             Spacer()

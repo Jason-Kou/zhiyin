@@ -31,7 +31,7 @@ ZhiYin is a macOS menu-bar app for lightning-fast voice input. Supports **14 lan
 - **Personal dictionary** — Custom term corrections for your domain
 - **AI Agent** *(new in 0.9)* — Hold a hotkey, speak your intent, release — an appropriate reply is drafted from what's on your screen. Email / Instant Message / Assistant agents auto-select based on the frontmost app (Mail, Outlook, Slack, Gmail, WhatsApp, etc.). Works with Ollama, OpenRouter, Google Gemini, or any OpenAI-compatible endpoint.
 - **Quick recall** *(new in 0.9)* — `⇧⌘C` copies the last transcription; a menu action re-runs the STT on the saved audio if the first pass wasn't right.
-- **Free forever** — 50 transcriptions/day free, $12 Pro unlocks unlimited
+- **Free and unlimited** — no daily cap, no account, no paid tier
 
 ## Install
 
@@ -50,10 +50,6 @@ cd zhiyin
 
 **Requirements**: macOS 14.0+, Apple Silicon (M1/M2/M3/M4/M5), Python 3.10+
 
-Building from source and want no daily limit? Uncomment `.define("DISABLE_USAGE_LIMIT")`
-in `Package.swift`. ZhiYin is GPL-3.0 — that is allowed, and
-[CONTRIBUTING.md](CONTRIBUTING.md#building-without-the-daily-limit) explains where
-the paid licence fits.
 
 ## Usage
 
@@ -76,11 +72,10 @@ the paid licence fits.
 The recording hotkey is configurable — Settings → General offers Right/Left Control,
 Right/Left Option, Fn, and several two-key combos.
 
-## Free vs Pro
+## Price
 
-Free tier includes **50 transcriptions per day** with full voice input functionality.
-
-**Pro** ($12, one-time) unlocks unlimited transcriptions.
+Free, with no usage limit and nothing to buy. ZhiYin used to cap the free tier at
+50 transcriptions per day with a $12 Pro upgrade; that is switched off.
 
 ## Comparison
 
@@ -92,7 +87,7 @@ Free tier includes **50 transcriptions per day** with full voice input functiona
 | Traditional Chinese output | Yes (toggle) | Separate language pack | No | No | Yes |
 | Personal dictionary | Yes | No | No | No | No |
 | System-wide | Yes | Yes | Yes | Yes | Yes |
-| Price | Free / $12 Pro | Free | $10/mo | $25 | Free |
+| Price | Free | Free | $10/mo | $25 | Free |
 
 ## Tech stack
 

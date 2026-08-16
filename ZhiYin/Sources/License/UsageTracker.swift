@@ -5,6 +5,15 @@ import Foundation
 class UsageTracker: ObservableObject {
     static let shared = UsageTracker()
 
+    /// Master switch for the paid tier. ZhiYin is currently free and unlimited.
+    ///
+    /// Setting this to `true` restores the 50/day free limit and the $12 Pro
+    /// upgrade. Nothing was deleted — flipping it back also requires:
+    ///   - `MONETIZATION_ENABLED = True` in python/stt_server.py
+    ///   - restoring the `.license` case in SettingsTab
+    ///   - restoring the pricing copy in README.md / README.zh-CN.md
+    static let monetizationEnabled = false
+
     static let dailyFreeLimit = 50
 
     @Published private(set) var todayCount: Int = 0
@@ -21,6 +30,7 @@ class UsageTracker: ObservableObject {
         #if DISABLE_USAGE_LIMIT
         return true
         #else
+        guard Self.monetizationEnabled else { return true }
         resetIfNewDay()
         todayCount += 1
         UserDefaults.standard.set(todayCount, forKey: countKey)
@@ -33,7 +43,7 @@ class UsageTracker: ObservableObject {
         #if DISABLE_USAGE_LIMIT
         return false
         #else
-        return todayCount > Self.dailyFreeLimit
+        return Self.monetizationEnabled && todayCount > Self.dailyFreeLimit
         #endif
     }
 

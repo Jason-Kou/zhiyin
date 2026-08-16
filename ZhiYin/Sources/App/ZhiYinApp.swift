@@ -1131,12 +1131,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                     HistoryStore.shared.save(text: text, duration: duration, tempAudioURL: audioURL)
                 }
 
-                // Track usage and wrap text with upgrade notice if over limit
-                let isPro = UserDefaults.standard.bool(forKey: "isPro")
-                if !isPro {
-                    let withinLimit = UsageTracker.shared.record()
-                    if !withinLimit {
-                        processed = Self.insertUpgradeNotices(processed)
+                // Track usage and wrap text with upgrade notice if over limit.
+                // Inert while UsageTracker.monetizationEnabled is false — ZhiYin is
+                // free and unlimited, so nothing here runs.
+                if UsageTracker.monetizationEnabled {
+                    let isPro = UserDefaults.standard.bool(forKey: "isPro")
+                    if !isPro {
+                        let withinLimit = UsageTracker.shared.record()
+                        if !withinLimit {
+                            processed = Self.insertUpgradeNotices(processed)
+                        }
                     }
                 }
 

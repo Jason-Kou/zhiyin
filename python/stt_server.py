@@ -1256,6 +1256,12 @@ USAGE_COUNT_KEY = "dailyTranscriptionCount"
 USAGE_DATE_KEY = "dailyTranscriptionDate"
 USAGE_DAILY_LIMIT = 50
 
+# Master switch for the paid tier — keep in sync with UsageTracker.monetizationEnabled
+# on the Swift side. ZhiYin is currently free and unlimited, so /usage always reports
+# unlimited and the CLI never refuses. Nothing below was deleted; flip to True to
+# restore the 50/day limit.
+MONETIZATION_ENABLED = False
+
 
 def _read_defaults(key: str) -> str:
     try:
@@ -1313,6 +1319,8 @@ def _read_is_pro() -> bool:
 @app.get("/usage")
 def usage_status():
     """Return current usage count and limits."""
+    if not MONETIZATION_ENABLED:
+        return {"count": 0, "limit": -1, "is_pro": True, "remaining": -1}
     count = _read_usage_count()
     is_pro = _read_is_pro()
     remaining = max(0, USAGE_DAILY_LIMIT - count) if not is_pro else -1
@@ -1322,6 +1330,8 @@ def usage_status():
 @app.post("/usage/record")
 def usage_record():
     """Increment usage count. Returns whether within limit."""
+    if not MONETIZATION_ENABLED:
+        return {"ok": True, "is_pro": True}
     is_pro = _read_is_pro()
     if is_pro:
         return {"ok": True, "is_pro": True}
