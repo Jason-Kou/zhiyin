@@ -31,6 +31,35 @@ class PersonalDictionary: ObservableObject {
         save()
     }
 
+    func update(id: UUID, original: String, replacement: String) {
+        guard let i = entries.firstIndex(where: { $0.id == id }) else { return }
+        entries[i].original = original
+        entries[i].replacement = replacement
+        save()
+    }
+
+    /// Removes an entry and hands it back with its position, so the caller can undo.
+    @discardableResult
+    func remove(id: UUID) -> (entry: DictionaryEntry, index: Int)? {
+        guard let i = entries.firstIndex(where: { $0.id == id }) else { return nil }
+        let removed = entries.remove(at: i)
+        save()
+        return (removed, i)
+    }
+
+    func insert(_ entry: DictionaryEntry, at index: Int) {
+        entries.insert(entry, at: min(index, entries.count))
+        save()
+    }
+
+    /// An existing entry for the same spoken form. Matching is case-insensitive
+    /// because applyReplacements is — two entries differing only in case would
+    /// leave the second one permanently dead.
+    func existing(original: String) -> DictionaryEntry? {
+        let key = original.trimmingCharacters(in: .whitespaces).lowercased()
+        return entries.first { $0.original.lowercased() == key }
+    }
+
     func applyReplacements(_ text: String) -> String {
         var result = text
         for entry in entries {
