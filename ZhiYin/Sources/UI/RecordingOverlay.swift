@@ -329,10 +329,12 @@ struct RecordingOverlayView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .frame(maxWidth: 400)
+        // No shadow: the window is sized to fit the pill with only 4-8pt of slack,
+        // so a radius-8 shadow was clipped at the window bounds and the cut edge
+        // read as a thin dark outline around the capsule.
         .background(
             Capsule()
                 .fill(currentPillColor)
-                .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
         )
     }
 }
