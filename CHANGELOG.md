@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.2] - 2026-08-16
+
+### Added
+- **Arabic numerals** (Settings → General, off by default). The speech model writes spoken decimals in Chinese — "三点五" rather than "3.5" — and cannot be asked for digits; its decoder is Qwen3-based, but instructions only steer word choice, not output format. This converts them afterwards.
+
+  Deliberately narrow, because Chinese numerals are load-bearing in ordinary words. 三点五 becomes 3.5 and 二十三点八 becomes 23.8, while 等一下, 十分重要, 星期三 and 三点五十分 — a clock time, not 3.50 — are left exactly as they are. Bare integers are not touched at all.
+
+### Fixed
+- A thin dark outline around the recording overlay. The pill's drop shadow was clipped at the window bounds, and the cut edge read as a border.
+
 ## [1.0.1] - 2026-08-15
 
 ### Fixed

@@ -30,6 +30,11 @@ jobs:
       - name: Hallucination filter unit tests
         run: python python/test_hallucination.py
 
+      # Chinese numerals are load-bearing in ordinary words (一下, 十分, 星期三),
+      # so most of these cases assert that text is left ALONE.
+      - name: Numeral conversion unit tests
+        run: python python/test_numerals.py
+
       - name: Shell script syntax
         run: |
           for s in scripts/*.sh; do bash -n "$s"; done

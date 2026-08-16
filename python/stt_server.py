@@ -35,6 +35,7 @@ from fastapi import FastAPI, UploadFile, File, Request
 from fastapi.responses import JSONResponse
 from mlx_audio.stt.utils import load_model
 from huggingface_hub import snapshot_download
+from numerals import convert_chinese_numerals
 from hallucination import (
     has_repetition,
     is_known_hallucination,
@@ -61,6 +62,7 @@ initial_prompt: str | None = None
 asr_language: str = "auto"
 s2t_converter: opencc.OpenCC | None = None  # lazy-init on first use
 output_traditional: bool = False
+convert_numerals: bool = False
 
 SAMPLE_RATE = 16000
 SESSION_TIMEOUT = 600  # 10 min auto-cleanup (doubled from 5 min to prevent session expiry during finalization after max-duration recording)
@@ -260,6 +262,21 @@ def _load_language_setting() -> str:
     return "auto"
 
 
+def _load_numerals_setting() -> bool:
+    """Read Arabic-numeral output preference from UserDefaults."""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["defaults", "read", "com.zhiyin.app", "convertChineseNumerals"],
+            capture_output=True, text=True, timeout=2
+        )
+        enabled = result.stdout.strip() == "1"
+        print(f"Arabic numeral output: {enabled}")
+        return enabled
+    except Exception:
+        return False
+
+
 def _load_traditional_setting() -> bool:
     """Read traditional Chinese output preference from UserDefaults."""
     try:
@@ -337,7 +354,7 @@ def _warmup_whisper():
 
 
 def warmup_models():
-    global asr_model, vad_model, initial_prompt, asr_language, output_traditional, stt_engine
+    global asr_model, vad_model, initial_prompt, asr_language, output_traditional, stt_engine, convert_numerals
 
     # Load Silero VAD (tiny, <1s)
     print("Loading Silero VAD...")
@@ -348,6 +365,7 @@ def warmup_models():
     initial_prompt = load_initial_prompt()
     asr_language = _load_language_setting()
     output_traditional = _load_traditional_setting()
+    convert_numerals = _load_numerals_setting()
     stt_engine = _load_stt_engine_setting()
     print(f"STT engine: {stt_engine}")
 
@@ -447,6 +465,8 @@ def _transcribe_funasr(audio: np.ndarray, context: str = "", tokens_per_sec: int
         print(f"Rejected hallucination: '{text}' (rms={rms:.4f}, dur={duration_sec:.2f}s)")
         return ""
 
+    if text and convert_numerals:
+        text = convert_chinese_numerals(text)
     if text and output_traditional:
         text = convert_to_traditional(text)
 
@@ -503,6 +523,8 @@ def _transcribe_whisper(audio: np.ndarray, context: str = "",
         print(f"Rejected Whisper hallucination: '{text}' (rms={rms:.4f})")
         return ""
 
+    if text and convert_numerals:
+        text = convert_chinese_numerals(text)
     if text and output_traditional:
         text = convert_to_traditional(text)
 
@@ -657,10 +679,11 @@ def health():
 @app.post("/reload-settings")
 def reload_settings():
     """Reload dictionary, language, and engine settings without restarting server."""
-    global initial_prompt, asr_language, output_traditional, stt_engine
+    global initial_prompt, asr_language, output_traditional, stt_engine, convert_numerals
     initial_prompt = load_initial_prompt()
     asr_language = _load_language_setting()
     output_traditional = _load_traditional_setting()
+    convert_numerals = _load_numerals_setting()
 
     # Check for engine change
     new_engine = _load_stt_engine_setting()
@@ -681,7 +704,7 @@ def reload_settings():
             if asr_model is None:
                 _get_executor().submit(_load_funasr_model)
 
-    return {"ok": True, "language": asr_language, "traditional": output_traditional,
+    return {"ok": True, "language": asr_language, "traditional": output_traditional, "numerals": convert_numerals,
             "initial_prompt": initial_prompt, "engine": stt_engine}
 
 
@@ -778,6 +801,8 @@ def _transcribe_file_sync(audio: np.ndarray) -> str:
     # → "我加了显示加了标点符号"). See join_group_texts docstring for rationale.
     text = join_group_texts(texts)
 
+    if text and convert_numerals:
+        text = convert_chinese_numerals(text)
     if text and output_traditional:
         text = convert_to_traditional(text)
     return text

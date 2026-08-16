@@ -34,6 +34,7 @@ struct GeneralTab: View {
     @AppStorage("selectedHotkey") private var selectedHotkeyRaw = HotkeyOption.leftControlOption.rawValue
     @AppStorage("selectedAIHotkey") private var selectedAIHotkeyRaw = HotkeyOption.fnOption.rawValue
     @AppStorage("outputTraditionalChinese") private var outputTraditionalChinese = false
+    @AppStorage("convertChineseNumerals") private var convertChineseNumerals = false
     @AppStorage("recognitionLanguage") private var recognitionLanguage = "auto"
     @AppStorage("sttEngine") private var sttEngine = "funasr"
     @State private var audioDevices: [AudioInputDevice] = []
@@ -158,6 +159,21 @@ struct GeneralTab: View {
                         }
                 }
                 Text("Output traditional characters for Chinese transcription.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Divider()
+
+                SettingRow("Arabic numerals") {
+                    Toggle("", isOn: $convertChineseNumerals)
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                        .labelsHidden()
+                        .onChange(of: convertChineseNumerals) {
+                            LanguageSettings.shared.notifyServer()
+                        }
+                }
+                Text("Write spoken decimals as digits — \"三点五\" becomes \"3.5\". Numerals inside ordinary words are left alone.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
