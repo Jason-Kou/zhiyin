@@ -73,13 +73,33 @@ def _decimal_sub(m: re.Match, text: str) -> str:
     return f"{value}.{_digits_to_int(frac) if len(frac) == 1 else ''.join(str(DIGITS[c]) for c in frac)}"
 
 
+# A numeral glued directly to a Latin word is version-speak — Qwen三, GPT四,
+# iPhone十五. Chinese prose never attaches a bare numeral to a Latin word —
+# except when the numeral opens a measure phrase: English三个月, Python五年.
+# So the guard is a measure-word lookahead, not a blanket CJK one; GPT四更强
+# converts while English三个月 stays.
+_MEASURE_WORDS = "个月年天号次分秒周岁点时刻位名家场页步倍款条张遍回种类件套间只支部台辆颗粒块片段届期轮折成"
+_LATIN_ADJACENT = re.compile(
+    f"(?<=[A-Za-z0-9])([{DIGIT_CHARS}十]+)(?![{_MEASURE_WORDS}])"
+)
+
+
+def _latin_adjacent_sub(m: re.Match) -> str:
+    s = m.group(1)
+    v = _tens_to_int(s)
+    if v is None and all(c in DIGITS for c in s):
+        v = _digits_to_int(s)
+    return str(v) if v is not None else m.group(0)
+
+
 def convert_chinese_numerals(text: str) -> str:
     """Rewrite spoken decimals as digits. Everything else is left untouched.
 
-    ponytail: decimals only. Bare integers are not converted — 一, 十分, 三 carry
+    ponytail: decimals and Latin-adjacent numerals only. Bare integers are not converted — 一, 十分, 三 carry
     too many non-numeric readings to rewrite safely without context, and getting
     that wrong corrupts ordinary sentences. Extend only with tests for the traps.
     """
     if not text:
         return text
-    return _DECIMAL.sub(lambda m: _decimal_sub(m, text), text)
+    text = _DECIMAL.sub(lambda m: _decimal_sub(m, text), text)
+    return _LATIN_ADJACENT.sub(_latin_adjacent_sub, text)

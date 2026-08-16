@@ -29,6 +29,12 @@ CONVERT = [
     ("从三点五涨到四点二", "从3.5涨到4.2"),
     # Surrounded by other text
     ("版本三点五发布了", "版本3.5发布了"),
+    # Glued to a Latin word — version-speak, the "Qwen三" case
+    ("Qwen三", "Qwen3"),
+    ("我用Qwen三vl识别图片", "我用Qwen3vl识别图片"),
+    ("GPT四更强", "GPT4更强"),
+    ("iPhone十五发布了", "iPhone15发布了"),
+    ("Qwen三点五", "Qwen3.5"),
 ]
 
 LEAVE_ALONE = [
@@ -55,6 +61,11 @@ LEAVE_ALONE = [
     # Nothing numeric at all
     "今天天气不错",
     "",
+    # Latin-adjacent but followed by CJK — a real Chinese phrase, not a version
+    "用English三个月了",
+    "学Python五年",
+    # Numeral not adjacent to Latin
+    "版本三已经发布",
 ]
 
 
