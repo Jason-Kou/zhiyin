@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+# What this does NOT cover: transcription quality. The STT harness
+# (python/test_streaming.py) needs MLX plus a ~1.5GB model download and real
+# audio, so it stays a manual step — see CONTRIBUTING.md. Its unit tests are
+# reachable only by importing stt_server, which imports mlx_audio at module
+# level; splitting the hallucination filter into its own module would let them
+# run here without the model.
+jobs:
+  lint:
+    name: Lint (cheap checks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python syntax
+        run: python -m compileall -q python/
+
+      - name: Shell script syntax
+        run: |
+          for s in scripts/*.sh; do bash -n "$s"; done
+
+      - name: Issue form YAML is parseable
+        run: |
+          python -c "
+          import glob, yaml, sys
+          for f in glob.glob('.github/**/*.yml', recursive=True):
+              yaml.safe_load(open(f))
+              print('ok', f)
+          "
+
+      # scripts/install.sh and pipDeps in ZhiYinApp.swift are two copies of the
+      # same dependency list. They drifted once already: pipDeps was missing
+      # silero-vad and opencc, so any venv the app built for itself died on import.
+      - name: Python dependency lists agree
+        run: |
+          a=$(grep -oE '^pip install -q .*' scripts/install.sh \
+              | sed 's/^pip install -q //' | tr ' ' '\n' | sort)
+          b=$(grep -oE 'pipDeps = "[^"]*"' ZhiYin/Sources/App/ZhiYinApp.swift \
+              | sed 's/.*"\(.*\)"/\1/' | tr ' ' '\n' | sort)
+          if [ "$a" != "$b" ]; then
+            echo "::error::scripts/install.sh and ZhiYinApp.swift pipDeps disagree"
+            diff <(echo "$a") <(echo "$b") || true
+            exit 1
+          fi
+          echo "in sync"
+
+      # The vendored module exists because the mlx-audio 0.2.10 wheel omits it;
+      # install.sh, make-dmg.sh, and the app's venv bootstrap all copy from here.
+      - name: Vendored funasr module is present
+        run: test -f python/vendor/funasr/funasr.py
+
+  build:
+    name: Swift build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: swift --version
+
+      - name: Build
+        run: swift build -c debug
+
+      - name: Build CLI target
+        run: swift build -c debug --product zhiyin-stt
