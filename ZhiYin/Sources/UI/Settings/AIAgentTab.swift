@@ -356,6 +356,13 @@ struct AIAgentTab: View {
 
     // MARK: - Provider Model Picker
 
+    /// Menu label for a model, marking the provider's default so there is a way
+    /// back after experimenting. Text-only: macOS menu items render attributed
+    /// styling unreliably, a suffix always shows.
+    private func modelLabel(_ model: String, for provider: AIProviderType) -> String {
+        model == provider.defaultModel ? "\(model)  ★ default" : model
+    }
+
     @ViewBuilder
     private var providerModelSection: some View {
         let prov = providerManager.selectedProvider
@@ -379,7 +386,7 @@ struct AIAgentTab: View {
                         } else {
                             Picker("", selection: modelBinding) {
                                 ForEach(providerManager.ollamaModels, id: \.self) { m in
-                                    Text(m).tag(m)
+                                    Text(modelLabel(m, for: .ollama)).tag(m)
                                 }
                             }
                             .labelsHidden()
@@ -400,7 +407,7 @@ struct AIAgentTab: View {
                         } else {
                             Picker("", selection: modelBinding) {
                                 ForEach(providerManager.openRouterModels, id: \.self) { m in
-                                    Text(m).tag(m)
+                                    Text(modelLabel(m, for: .openRouter)).tag(m)
                                 }
                             }
                             .labelsHidden()
@@ -421,7 +428,7 @@ struct AIAgentTab: View {
                         } else {
                             Picker("", selection: modelBinding) {
                                 ForEach(providerManager.geminiModels, id: \.self) { m in
-                                    Text(m).tag(m)
+                                    Text(modelLabel(m, for: .gemini)).tag(m)
                                 }
                             }
                             .labelsHidden()
