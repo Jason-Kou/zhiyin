@@ -50,6 +50,11 @@ cd zhiyin
 
 **Requirements**: macOS 14.0+, Apple Silicon (M1/M2/M3/M4/M5), Python 3.10+
 
+Building from source and want no daily limit? Uncomment `.define("DISABLE_USAGE_LIMIT")`
+in `Package.swift`. ZhiYin is GPL-3.0 — that is allowed, and
+[CONTRIBUTING.md](CONTRIBUTING.md#building-without-the-daily-limit) explains where
+the paid licence fits.
+
 ## Usage
 
 1. Launch ZhiYin — it appears in your menu bar

@@ -29,6 +29,29 @@ To stop a stuck instance:
 pkill -f zhiyin; lsof -ti:17760 | xargs kill
 ```
 
+### Building without the daily limit
+
+Release builds cap free use at 50 transcriptions per day; past that, output is
+deliberately interleaved with upgrade notices rather than silently truncated, so
+it is obvious what happened. That will get in the way while you are developing.
+
+Uncomment the flag in `Package.swift`:
+
+```swift
+swiftSettings: [
+    .unsafeFlags(["-parse-as-library"]),
+    .define("DISABLE_USAGE_LIMIT"),   // ← uncomment
+]
+```
+
+`UsageTracker` compiles the counter out entirely under this flag.
+
+To be unambiguous about it: ZhiYin is GPL-3.0, and building yourself without the
+limit is a thing you are allowed to do. The paid licence exists for people who
+would rather download a signed DMG than maintain a toolchain, and it is what funds
+the work. Please do not redistribute unlimited builds as if they were the official
+release — that is a licence and trademark question, not a technical one.
+
 ### How the two halves fit together
 
 Swift owns the UI, audio capture, hotkeys, and text injection. Python runs the STT

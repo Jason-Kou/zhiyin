@@ -124,6 +124,10 @@ zhiyin/
 └── assets/             # 应用图标
 ```
 
+自行编译且不想要每日限额？把 `Package.swift` 里的 `.define("DISABLE_USAGE_LIMIT")`
+取消注释即可。知音是 GPL-3.0 授权，这样做是允许的；
+[CONTRIBUTING.md](CONTRIBUTING.md#building-without-the-daily-limit) 里说明了付费授权的定位。
+
 ## 参与贡献
 
 欢迎提 issue 和 PR —— 环境搭建、STT 测试脚本、以及动手前需要知道的坑都写在
