@@ -5,6 +5,8 @@ import CoreGraphics
 enum AIReplyError: Error, LocalizedError {
     case serverNotRunning
     case requestFailed(String)
+
+    case timedOut(TimeInterval)
     case parseFailed
     case emptyResponse
 
@@ -12,6 +14,11 @@ enum AIReplyError: Error, LocalizedError {
         switch self {
         case .serverNotRunning:
             return "LLM server is not running or unreachable. Please check your AI provider settings."
+        case .timedOut(let seconds):
+            // Distinct from serverNotRunning on purpose: the server answered, it
+            // was just still working. Telling someone to check their settings
+            // when the settings are fine sends them looking in the wrong place.
+            return "The model did not respond within \(Int(seconds))s. A smaller model, or a smaller screenshot, will be faster."
         case .requestFailed(let details):
             return "LLM request failed: \(details)"
         case .parseFailed:
@@ -19,6 +26,26 @@ enum AIReplyError: Error, LocalizedError {
         case .emptyResponse:
             return "LLM returned an empty response"
         }
+    }
+
+    /// Pull the provider's own explanation out of an error body.
+    ///
+    /// "HTTP 404" tells a user nothing they can act on. Ollama, OpenAI and
+    /// OpenRouter all put something useful in the body — "model 'qwen3.5:9b' not
+    /// found" is the difference between a mystery and a two-second fix — and it
+    /// was already being logged and then discarded.
+    static func explain(status: Int, body: Data) -> String {
+        guard
+            let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any]
+        else { return "HTTP \(status)" }
+
+        // {"error": {"message": "..."}} or {"error": "..."}
+        if let err = json["error"] as? [String: Any], let msg = err["message"] as? String {
+            return msg
+        }
+        if let msg = json["error"] as? String { return msg }
+        if let msg = json["message"] as? String { return msg }
+        return "HTTP \(status)"
     }
 }
 
@@ -88,6 +115,7 @@ class ContextualReplyManager {
                 (data, response) = try await URLSession.shared.data(for: request)
             } catch let urlError as URLError {
                 print("ContextualReplyManager: Gemini connection error - \(urlError.localizedDescription)")
+                if urlError.code == .timedOut { throw AIReplyError.timedOut(request.timeoutInterval) }
                 throw AIReplyError.serverNotRunning
             } catch {
                 print("ContextualReplyManager: Gemini request error - \(error.localizedDescription)")
@@ -100,7 +128,7 @@ class ContextualReplyManager {
             guard httpResponse.statusCode == 200 else {
                 let bodyStr = String(data: data, encoding: .utf8) ?? "no body"
                 print("ContextualReplyManager: Gemini HTTP \(httpResponse.statusCode) - \(bodyStr)")
-                throw AIReplyError.requestFailed("HTTP \(httpResponse.statusCode)")
+                throw AIReplyError.requestFailed(AIReplyError.explain(status: httpResponse.statusCode, body: data))
             }
             return try parseGeminiResponse(data)
         }
@@ -117,7 +145,9 @@ class ContextualReplyManager {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 60
+        // Local vision models on modest hardware routinely exceed a minute;
+        // matches the streaming path, which already allowed 120.
+        request.timeoutInterval = 120
         applyAuth(&request)
 
         do {
@@ -135,6 +165,7 @@ class ContextualReplyManager {
             (data, response) = try await URLSession.shared.data(for: request)
         } catch let urlError as URLError {
             print("ContextualReplyManager: connection error - \(urlError.localizedDescription)")
+            if urlError.code == .timedOut { throw AIReplyError.timedOut(request.timeoutInterval) }
             throw AIReplyError.serverNotRunning
         } catch {
             print("ContextualReplyManager: request error - \(error.localizedDescription)")
@@ -148,7 +179,7 @@ class ContextualReplyManager {
         guard httpResponse.statusCode == 200 else {
             let bodyStr = String(data: data, encoding: .utf8) ?? "no body"
             print("ContextualReplyManager: HTTP \(httpResponse.statusCode) - \(bodyStr)")
-            throw AIReplyError.requestFailed("HTTP \(httpResponse.statusCode)")
+            throw AIReplyError.requestFailed(AIReplyError.explain(status: httpResponse.statusCode, body: data))
         }
 
         return try parseResponse(data)

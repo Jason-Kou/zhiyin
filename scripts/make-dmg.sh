@@ -130,6 +130,7 @@ echo "  Installing dependencies (this takes a few minutes)..."
     "mlx-audio==0.2.10" \
     "silero-vad" \
     "opencc-python-reimplemented" \
+    "torchvision" \
     2>&1 | tail -3
 
 # Ensure funasr model module exists (PyPI build may omit it)
@@ -164,7 +165,7 @@ REMOVE_DIRS=(
     scipy sklearn scikit_learn numba llvmlite
     # Other heavy unused deps
     onnxruntime mistral_common babel pycountry
-    mlx_vlm mlx_lm  # only mlx_audio.stt needed
+    mlx_lm  # mlx_vlm is kept: the built-in AI provider runs vision locally
     rdflib csvw isodate language_tags segments
     tiktoken sentencepiece librosa audioread pooch lazy_loader soxr
     phonemizer_fork espeakng_loader misaki pydub sounddevice

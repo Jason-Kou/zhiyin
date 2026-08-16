@@ -25,6 +25,18 @@ class ScreenshotCapture {
 
     /// Captures the frontmost window as a CGImage.
     /// Falls back to full screen if window capture fails.
+    /// Longest edge sent to a vision model.
+    ///
+    /// Capture starts from Retina backing pixels, so a modest window is already
+    /// ~3000px wide before any limit applies. Image tokens scale with area, and
+    /// so does the time a local model spends on prefill — going from 1920 to 1280
+    /// removes over half the pixels. UI screenshots survive it: 1280 still leaves
+    /// on-screen text legible, which is the thing the model actually has to read.
+    ///
+    /// The window and full-display paths used to disagree (1920 vs 1280) for no
+    /// stated reason. One number now.
+    static let maxCaptureWidth = 1280.0
+
     func captureFullScreen() async throws -> CGImage {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
 
@@ -38,11 +50,10 @@ class ScreenshotCapture {
             do {
                 let filter = SCContentFilter(desktopIndependentWindow: frontWindow)
                 let config = SCStreamConfiguration()
-                // Use Retina (2x) resolution, capped at 1920px output width
                 let retinaScale = NSScreen.main?.backingScaleFactor ?? 2.0
                 let nativeWidth = Double(frontWindow.frame.width) * retinaScale
                 let nativeHeight = Double(frontWindow.frame.height) * retinaScale
-                let maxWidth = 1920.0
+                let maxWidth = Self.maxCaptureWidth
                 let downscale = min(1.0, maxWidth / nativeWidth)
                 config.width = Int(nativeWidth * downscale)
                 config.height = Int(nativeHeight * downscale)
@@ -62,8 +73,8 @@ class ScreenshotCapture {
         // Fallback: capture the full display
         let filter = SCContentFilter(display: display, excludingWindows: [])
         let config = SCStreamConfiguration()
-        let maxWidth = 1280
-        let scale = min(1.0, Double(maxWidth) / Double(display.width))
+        let maxWidth = Self.maxCaptureWidth
+        let scale = min(1.0, maxWidth / Double(display.width))
         config.width = Int(Double(display.width) * scale)
         config.height = Int(Double(display.height) * scale)
         config.pixelFormat = kCVPixelFormatType_32BGRA

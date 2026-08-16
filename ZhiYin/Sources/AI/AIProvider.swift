@@ -4,6 +4,11 @@ import Security
 // MARK: - AI Provider
 
 enum AIProviderType: String, Codable, CaseIterable, Identifiable {
+    /// Vision-language inference inside ZhiYin's own Python server. No install,
+    /// no endpoint, no API key — the model downloads itself the way the speech
+    /// model already does. Every other provider needs the user to stand up a
+    /// server or hold an account first, which is where most people stop.
+    case builtin
     case ollama
     case openRouter
     case gemini
@@ -14,6 +19,7 @@ enum AIProviderType: String, Codable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
+        case .builtin: return "Built-in (local)"
         case .ollama: return "Ollama"
         case .openRouter: return "OpenRouter"
         case .gemini: return "Gemini"
@@ -24,6 +30,7 @@ enum AIProviderType: String, Codable, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
+        case .builtin: return "sparkles.rectangle.stack"
         case .ollama: return "desktopcomputer"
         case .openRouter: return "globe"
         case .gemini: return "sparkle"
@@ -34,6 +41,8 @@ enum AIProviderType: String, Codable, CaseIterable, Identifiable {
 
     var defaultEndpoint: String {
         switch self {
+        // Served by the bundled STT server, whose port is fixed.
+        case .builtin: return "http://127.0.0.1:17760/v1/chat/completions"
         case .ollama: return "http://localhost:11434/v1/chat/completions"
         case .openRouter: return "https://openrouter.ai/api/v1/chat/completions"
         case .gemini: return "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
@@ -44,6 +53,7 @@ enum AIProviderType: String, Codable, CaseIterable, Identifiable {
 
     var defaultModel: String {
         switch self {
+        case .builtin: return "mlx-community/Qwen3-VL-8B-Instruct-4bit"
         case .ollama: return "gemma4:e4b"
         case .openRouter: return "google/gemma-4-26b-a4b-it:free"
         case .gemini: return "gemini-2.5-flash-lite"
@@ -54,7 +64,7 @@ enum AIProviderType: String, Codable, CaseIterable, Identifiable {
 
     var requiresAPIKey: Bool {
         switch self {
-        case .ollama, .localCLI: return false
+        case .builtin, .ollama, .localCLI: return false
         case .openRouter, .gemini: return true
         case .custom: return false // optional
         }
@@ -85,11 +95,39 @@ enum AIProviderType: String, Codable, CaseIterable, Identifiable {
         "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite",
     ]
 
-    /// Keywords that indicate a model likely supports vision
+    /// Keywords that indicate a model likely supports vision.
+    ///
+    /// "qwen3.5" used to be on this list and was wrong in a way that cost real
+    /// debugging time: Qwen3.5 is a text model, and Ollama's /api/show even
+    /// advertises `vision` in its capabilities, but asked about an image it
+    /// answers "I cannot see the image directly because I am a text-based AI
+    /// model". ZhiYin would attach a screenshot anyway, and the model would burn
+    /// its whole budget reasoning about a picture it could not see and return an
+    /// empty reply. A false positive here is worse than a false negative — the
+    /// latter merely sends text.
+    ///
+    /// Qwen's vision models are the separate `-VL-` line, matched below.
     static let visionKeywords: [String] = [
-        "gemma4", "gemini", "qwen3.5", "gpt-4o", "gpt-4-vision", "claude-3", "claude-sonnet", "claude-opus",
-        "llava", "vision", "multimodal",
+        "gemma4", "gemini", "gpt-4o", "gpt-4-vision", "claude-3", "claude-sonnet", "claude-opus",
+        "llava", "vision", "multimodal", "moondream", "pixtral", "minicpm-v", "internvl",
     ]
+
+    /// Vision variants are marked with a delimited "vl" — qwen3-vl, qwen2.5-vl,
+    /// InternVL. Matched separately because a bare "vl" substring would also hit
+    /// unrelated names.
+    private static func hasVLMarker(_ lower: String) -> Bool {
+        let delimiters: Set<Character> = ["-", "_", ".", ":", "/", " "]
+        var idx = lower.startIndex
+        while let r = lower.range(of: "vl", range: idx..<lower.endIndex) {
+            let beforeOK = r.lowerBound == lower.startIndex
+                || delimiters.contains(lower[lower.index(before: r.lowerBound)])
+            let afterOK = r.upperBound == lower.endIndex
+                || delimiters.contains(lower[r.upperBound])
+            if beforeOK && afterOK { return true }
+            idx = r.upperBound
+        }
+        return false
+    }
 
     /// Check if a specific model likely supports vision
     static func modelSupportsVision(_ model: String, provider: AIProviderType) -> Bool {
@@ -101,6 +139,7 @@ enum AIProviderType: String, Codable, CaseIterable, Identifiable {
         if knownVisionModels.contains(model) { return true }
         // Check keywords
         let lower = model.lowercased()
+        if hasVLMarker(lower) { return true }
         return visionKeywords.contains { lower.contains($0) }
     }
 }
@@ -236,6 +275,8 @@ class AIProviderManager: ObservableObject {
     /// The endpoint URL for the current provider
     var currentEndpoint: String {
         switch selectedProvider {
+        // ZhiYin's own server; the port is fixed and never user-configurable.
+        case .builtin: return AIProviderType.builtin.defaultEndpoint
         case .ollama: return ollamaURL + "/v1/chat/completions"
         case .openRouter: return AIProviderType.openRouter.defaultEndpoint
         // NOTE: .gemini is special-cased in ContextualReplyManager and uses the native

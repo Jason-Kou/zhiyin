@@ -74,7 +74,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     // var updaterController: SPUStandardUpdaterController?
     var enhanceHotkeyMonitor: Any?
 
-    private var recordingState: RecordingState = .idle
+    private var recordingState: RecordingState = .idle {
+        didSet { armFinalizeWatchdog() }
+    }
+
+    /// `.finalizing` has no guaranteed exit. The work runs in a detached Task, and
+    /// a cancellation or a swallowed error strands the state machine there — after
+    /// which every hotkey press is ignored and voice input is dead until relaunch,
+    /// with a spinning overlay as the only clue. Seen in the wild with an AI reply
+    /// whose request ended without either completion branch running.
+    ///
+    /// Arming from `didSet` rather than at each assignment means every path into
+    /// and out of `.finalizing` is covered, including whichever one caused that.
+    private var finalizeWatchdog: Task<Void, Never>?
+    private var finalizingSince: Date?
+    private static let finalizeTimeout: TimeInterval = 90
+
+    /// How long `.finalizing` must have been running before a hotkey press counts
+    /// as "get me out of here" rather than a stray event.
+    ///
+    /// This gate is the whole difference between working and broken. A normal
+    /// transcription passes through `.finalizing` for a second or two, and the
+    /// hotkey emits several more events while it does. Treating those as cancel
+    /// aborts every ordinary recording — which is exactly what a first attempt at
+    /// this did.
+    private static let stuckThreshold: TimeInterval = 6
+
     private var isServerReady = false
     private var recordingStartTime: Date?
 
@@ -330,7 +355,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private static let venvPath = "\(zhiyinHome)/venv"
     // Keep in sync with scripts/install.sh. silero-vad and opencc are imported directly
     // by stt_server.py and are not pulled in transitively by anything else here.
-    private static let pipDeps = "fastapi uvicorn soundfile numpy mlx-audio==0.2.10 huggingface-hub opencc-python-reimplemented silero-vad mlx-whisper==0.4.3"
+    private static let pipDeps = "fastapi uvicorn soundfile numpy mlx-audio==0.2.10 huggingface-hub opencc-python-reimplemented silero-vad torchvision mlx-whisper==0.4.3"
 
     /// Bundled Python runtime inside the .app bundle (for release builds)
     private static var bundledPython: String? {
@@ -747,8 +772,56 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
     }
 
+    private func armFinalizeWatchdog() {
+        finalizeWatchdog?.cancel()
+        finalizeWatchdog = nil
+        guard case .finalizing = recordingState else {
+            finalizingSince = nil
+            return
+        }
+        finalizingSince = Date()
+        finalizeWatchdog = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(Self.finalizeTimeout * 1_000_000_000))
+            guard !Task.isCancelled, let self else { return }
+            guard case .finalizing = self.recordingState else { return }
+            print("RecordingState: finalizing exceeded \(Int(Self.finalizeTimeout))s — forcing idle")
+            self.forceIdle(status: "\u{2717} Timed out", icon: "exclamationmark.triangle")
+        }
+    }
+
+    /// Abandon a finalize that is never going to finish and make the app usable again.
+    private func forceIdle(status: String, icon: String) {
+        finalizeWatchdog?.cancel()
+        finalizeWatchdog = nil
+        finalizingSince = nil
+        aiReplySetupTask?.cancel()
+        aiReplySetupTask = nil
+
+        isAIReplyMode = false
+        aiReplyScreenshot = nil
+        aiSelectedAgent = nil
+
+        RecordingOverlayController.shared.dismiss()
+        flashStatus(status, icon: icon)
+        recordingState = .idle
+
+        Task { await transcriber?.cancelSession() }
+    }
+
+    /// True when this press was consumed as an escape from a stuck finalize.
+    /// Returns false during a normal finalize, so ordinary recordings are untouched.
+    private func escapedStuckFinalize() -> Bool {
+        guard case .finalizing = recordingState else { return false }
+        let elapsed = finalizingSince.map { Date().timeIntervalSince($0) } ?? 0
+        guard elapsed >= Self.stuckThreshold else { return false }
+        print("RecordingState: hotkey after \(Int(elapsed))s of finalizing — cancelling")
+        forceIdle(status: "\u{2717} Cancelled", icon: "xmark.circle")
+        return true
+    }
+
     private func startRecording() {
         guard case .idle = recordingState else {
+            if escapedStuckFinalize() { return }
             print("RecordingState: ignoring start request, current state: \(recordingState)")
             return
         }
@@ -789,6 +862,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     private func startAIReplyRecording() {
         guard case .idle = recordingState else {
+            if escapedStuckFinalize() { return }
             print("AI Reply: ignoring start, current state: \(recordingState)")
             return
         }
@@ -853,6 +927,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     private func stopAIReplyAndGenerate() {
         guard case .recording = recordingState, isAIReplyMode else {
+            if escapedStuckFinalize() { return }
             print("AI Reply: ignoring stop, state=\(recordingState) aiMode=\(isAIReplyMode)")
             return
         }
@@ -991,6 +1066,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     /// Routes to AI Reply stop path when isAIReplyMode is active.
     private func requestStop(reason: StopReason) {
         guard case .recording = recordingState else {
+            if case .userRelease = reason, escapedStuckFinalize() { return }
             print("RecordingState: ignoring stop request (\(reason)), current state: \(recordingState)")
             return
         }

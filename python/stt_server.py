@@ -36,6 +36,7 @@ from fastapi.responses import JSONResponse
 from mlx_audio.stt.utils import load_model
 from huggingface_hub import snapshot_download
 from numerals import convert_chinese_numerals
+import vision_chat
 from hallucination import (
     has_repetition,
     is_known_hallucination,
@@ -1352,6 +1353,61 @@ def _increment_usage_count() -> int:
 def _read_is_pro() -> bool:
     val = _read_defaults("isPro")
     return val == "1"
+
+
+@app.post("/v1/chat/completions")
+async def chat_completions(request: Request):
+    """Built-in vision-language chat, in the OpenAI shape.
+
+    Deliberately OpenAI-compatible: the Swift side already builds and parses that
+    format for Ollama, OpenRouter and custom endpoints, so the built-in provider
+    needs no request or response code of its own — only a different URL.
+
+    Runs on the shared single-thread executor because MLX is not thread-safe. A
+    reply therefore cannot overlap a transcription, which push-to-talk never asks
+    for anyway.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": {"message": "Invalid JSON body"}})
+
+    messages = body.get("messages") or []
+    if not messages:
+        return JSONResponse(status_code=400, content={"error": {"message": "messages is required"}})
+
+    repo = body.get("model") or vision_chat.DEFAULT_REPO
+    max_tokens = int(body.get("max_tokens") or 512)
+
+    try:
+        loop = asyncio.get_event_loop()
+        text = await loop.run_in_executor(
+            _get_executor(), vision_chat.chat, messages, max_tokens, repo
+        )
+    except Exception as e:
+        print(f"Vision chat failed: {e}")
+        return JSONResponse(status_code=500, content={"error": {"message": str(e)}})
+
+    return {
+        "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
+        "object": "chat.completion",
+        "model": repo,
+        "choices": [{
+            "index": 0,
+            "message": {"role": "assistant", "content": text},
+            "finish_reason": "stop",
+        }],
+    }
+
+
+@app.get("/v1/models")
+def list_vision_models():
+    """Model picker source for the built-in provider."""
+    return {
+        "object": "list",
+        "data": [{"id": vision_chat.DEFAULT_REPO, "object": "model",
+                  "loaded": vision_chat.is_loaded(vision_chat.DEFAULT_REPO)}],
+    }
 
 
 @app.get("/usage")
