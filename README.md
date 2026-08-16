@@ -18,7 +18,7 @@ ZhiYin is a macOS menu-bar app for lightning-fast voice input. Supports **14 lan
 
 ## Features
 
-- **Push-to-talk** — Hold `Option+Space`, speak, release to transcribe
+- **Push-to-talk** — Hold `Left Control + Option`, speak, release to transcribe (rebindable in Settings)
 - **Real-time preview** — Transcription appears live as you speak, finalized on release for best accuracy
 - **14 languages** — Chinese, English, Japanese, Korean, Cantonese, and more
 - **Auto language detection** — Let the model identify the language automatically
@@ -55,17 +55,21 @@ cd zhiyin
 1. Launch ZhiYin — it appears in your menu bar
 2. Grant **Microphone** and **Accessibility** permissions when prompted
 3. Wait for the status to show "Ready" (model loads in ~10-30s on first launch)
-4. Hold **Option+Space** and speak
+4. Hold **Left Control + Option** and speak
 5. Release — transcribed text is pasted at the cursor
 
 ### Keyboard shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| Option+Space (hold) | Start recording |
-| Option+Space (release) | Stop and transcribe |
+| Left Control + Option (hold) | Start recording |
+| Left Control + Option (release) | Stop and transcribe |
+| Shift+Cmd+C | Copy last transcription |
 | Cmd+, | Open settings |
 | Cmd+Q | Quit |
+
+The recording hotkey is configurable — Settings → General offers Right/Left Control,
+Right/Left Option, Fn, and several two-key combos.
 
 ## Free vs Pro
 
@@ -93,23 +97,34 @@ Free tier includes **50 transcriptions per day** with full voice input functiona
 | Runtime | MLX on Apple Silicon (Neural Engine + GPU) |
 | Frontend | Swift (SwiftUI + AppKit) |
 | Backend | Python (FastAPI + uvicorn) |
-| Audio | AVAudioEngine, 16kHz mono |
+| Audio | AUHAL (CoreAudio), 16kHz mono |
 
 ## Project structure
 
 ```
 zhiyin/
 ├── ZhiYin/Sources/     # Swift app
+│   ├── AI/             # Agent, providers, contextual reply
 │   ├── App/            # Entry point, AppDelegate
 │   ├── Audio/          # Recording
+│   ├── Context/        # Selected text / browser URL capture
+│   ├── Dictionary/     # Personal vocabulary
 │   ├── Input/          # Hotkey, text injection
 │   ├── License/        # Usage tracking, license
+│   ├── Models/         # History store
+│   ├── Mode/           # Per-app power modes
 │   ├── STT/            # Speech-to-text client
-│   └── UI/             # Settings, overlays
+│   └── UI/             # Settings, overlays, history
+├── ZhiYin/CLI/         # zhiyin-stt command-line client
 ├── python/             # Python STT server
+│   └── vendor/         # funasr module the mlx-audio wheel omits
 ├── scripts/            # Build, install, packaging
+├── docs/               # Architecture notes
 └── assets/             # App icon
 ```
+
+See [docs/vad-streaming-architecture.md](docs/vad-streaming-architecture.md) for how
+VAD-based streaming transcription works.
 
 ## License
 

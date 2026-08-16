@@ -18,7 +18,7 @@
 
 ## 功能特点
 
-- **按住说话** — 按住 `Option+空格`，说话，松开即转文字
+- **按住说话** — 按住 `左 Control + Option`，说话，松开即转文字（可在设置中更改）
 - **实时预览** — 边说话边显示文字，松开后整段重新转写保证最准确度
 - **中文优先** — 基于 FunASR MLX，针对普通话优化
 - **多语言** — 中文、英文、日语、韩语、粤语
@@ -56,17 +56,21 @@ cd zhiyin
 1. 启动知音 — 菜单栏出现麦克风图标
 2. 授予**麦克风**和**辅助功能**权限
 3. 等待状态显示 "Ready"（首次启动模型加载约 10-30 秒）
-4. 按住 **Option+空格** 开始说话
+4. 按住 **左 Control + Option** 开始说话
 5. 松开 — 识别文字自动粘贴到光标位置
 
 ### 快捷键
 
 | 快捷键 | 功能 |
 |--------|------|
-| Option+空格（按住） | 开始录音 |
-| Option+空格（松开） | 停止录音并识别 |
+| 左 Control + Option（按住） | 开始录音 |
+| 左 Control + Option（松开） | 停止录音并识别 |
+| Shift+Cmd+C | 复制上一条识别结果 |
 | Cmd+, | 打开设置 |
 | Cmd+Q | 退出 |
+
+录音快捷键可自定义 —— 设置 → 通用 中提供左/右 Control、左/右 Option、Fn
+以及多种双键组合。
 
 ## 免费版 vs Pro
 
@@ -94,21 +98,29 @@ cd zhiyin
 | 运行时 | MLX on Apple Silicon（Neural Engine + GPU） |
 | 前端 | Swift（SwiftUI + AppKit） |
 | 后端 | Python（FastAPI + uvicorn） |
-| 音频 | AVAudioEngine，16kHz 单声道 |
+| 音频 | AUHAL（CoreAudio），16kHz 单声道 |
 
 ## 项目结构
 
 ```
 zhiyin/
 ├── ZhiYin/Sources/     # Swift 应用
+│   ├── AI/             # Agent、模型供应商、上下文回复
 │   ├── App/            # 入口、AppDelegate
 │   ├── Audio/          # 录音模块
+│   ├── Context/        # 选中文字 / 浏览器 URL 捕获
+│   ├── Dictionary/     # 个人词库
 │   ├── Input/          # 快捷键、文字注入
 │   ├── License/        # 用量追踪、许可证
+│   ├── Models/         # 历史记录存储
+│   ├── Mode/           # 按应用区分的场景模式
 │   ├── STT/            # 语音识别客户端
-│   └── UI/             # 设置界面、浮窗
+│   └── UI/             # 设置界面、浮窗、历史
+├── ZhiYin/CLI/         # zhiyin-stt 命令行客户端
 ├── python/             # Python STT 服务器
+│   └── vendor/         # mlx-audio wheel 缺失的 funasr 模块
 ├── scripts/            # 构建、安装、打包脚本
+├── docs/               # 架构文档
 └── assets/             # 应用图标
 ```
 
